@@ -39,7 +39,7 @@
     "plugins": {
         "updater": {
             "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDkyODAyQTVEQTI1RkQwQjYKUldTMjBGK2lYU3FBa2hGNHpoMEFoSHZMaDBpYVZpc3B3RldzTFNQTlJ4eEpDNW5NRWk2Mk5idWsK",
-            "endpoints": ["https://github.com/jb-alvarado/adConverter/releases/latest/download/latest.json"],
+            "endpoints": ["https://github.com/amazing-discoveries-eu/adConverter/releases/latest/download/latest.json"],
             "windows": {
                 "installMode": "passive"
             }
