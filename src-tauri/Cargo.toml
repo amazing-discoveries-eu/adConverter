@@ -1,6 +1,6 @@
 [package]
 name = "adConverter"
-version = "0.16.1"
+version = "0.17.0"
 description = "Batch/Preset converter based on ffmpeg."
 authors = ["Jonathan Baecker <jonbae77@gmail.com>"]
 edition = "2024"
@@ -32,7 +32,7 @@ async-stream = "0.3"
 async-walkdir = "2"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std", "serde"] }
 clap = { version = "4.3", features = ["derive", "env"] }
-dirs = "6"
+dirs = "7"
 flexi_logger = { version = "0.31", features = ["kv", "colors"] }
 indicatif = "0.18"
 inquire = "0.9"

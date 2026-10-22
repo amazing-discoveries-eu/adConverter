@@ -44,6 +44,24 @@ jobs:
             - name: install frontend dependencies
               run: npm install
 
+            - name: Prepare Apple API key
+              if: runner.os == 'macOS'
+              shell: bash
+              env:
+                  APPLE_API_PRIVATE_KEY: ${{ secrets.APPLE_API_PRIVATE_KEY }}
+                  APPLE_API_KEY: ${{ secrets.APPLE_API_KEY_ID }}
+                  APPLE_API_ISSUER: ${{ vars.APPLE_ISSUER_ID }}
+              run: |
+                  set -euo pipefail
+                  if [[ -z "$APPLE_API_PRIVATE_KEY" || -z "$APPLE_API_KEY" || -z "$APPLE_API_ISSUER" ]]; then
+                      echo "::error::Missing APPLE_API_PRIVATE_KEY, APPLE_API_KEY_ID or APPLE_ISSUER_ID."
+                      exit 1
+                  fi
+                  key_path="$RUNNER_TEMP/adconverter-apple-api-key.p8"
+                  umask 077
+                  printf '%s' "$APPLE_API_PRIVATE_KEY" > "$key_path"
+                  echo "APPLE_API_KEY_PATH=$key_path" >> "$GITHUB_ENV"
+
             - name: Build the app
               uses: tauri-apps/tauri-action@v1
 
@@ -51,6 +69,11 @@ jobs:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
                   TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
                   TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
+                  APPLE_CERTIFICATE: ${{ runner.os == 'macOS' && secrets.APPLE_CERTIFICATE || '' }}
+                  APPLE_CERTIFICATE_PASSWORD: ${{ runner.os == 'macOS' && secrets.APPLE_CERTIFICATE_PASSWORD || '' }}
+                  APPLE_SIGNING_IDENTITY: ${{ runner.os == 'macOS' && secrets.APPLE_SIGNING_IDENTITY || '' }}
+                  APPLE_API_KEY: ${{ runner.os == 'macOS' && secrets.APPLE_API_KEY_ID || '' }}
+                  APPLE_API_ISSUER: ${{ runner.os == 'macOS' && vars.APPLE_ISSUER_ID || '' }}
 
               with:
                   tagName: v__VERSION__
@@ -60,3 +83,8 @@ jobs:
                   prerelease: false
                   retryAttempts: 2
                   args: ${{ matrix.args }}
+
+            - name: Remove Apple API key
+              if: always() && runner.os == 'macOS'
+              shell: bash
+              run: rm -f "$RUNNER_TEMP/adconverter-apple-api-key.p8"
