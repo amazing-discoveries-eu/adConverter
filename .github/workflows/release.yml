@@ -15,12 +15,16 @@ jobs:
                 include:
                     - platform: 'macos-latest'
                       args: '--target aarch64-apple-darwin'
+                      cli-target: aarch64-apple-darwin
                     - platform: 'macos-latest'
                       args: '--target x86_64-apple-darwin'
+                      cli-target: x86_64-apple-darwin
                     - platform: 'ubuntu-22.04'
                       args: ''
+                      cli-target: x86_64-unknown-linux-gnu
                     - platform: 'windows-latest'
                       args: ''
+                      cli-target: x86_64-pc-windows-msvc
         runs-on: ${{ matrix.platform }}
         steps:
             - uses: actions/checkout@v6
@@ -40,6 +44,12 @@ jobs:
               run: |
                   sudo apt-get update
                   sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+            - name: Install CLI packaging tools (Linux)
+              if: runner.os == 'Linux'
+              run: |
+                  sudo apt-get install -y ruby ruby-dev build-essential rpm dpkg-dev
+                  sudo gem install --no-document fpm -v 1.17.0
 
             - name: install frontend dependencies
               run: npm install
@@ -63,6 +73,7 @@ jobs:
                   echo "APPLE_API_KEY_PATH=$key_path" >> "$GITHUB_ENV"
 
             - name: Build the app
+              id: build_app
               uses: tauri-apps/tauri-action@v1
 
               env:
@@ -83,6 +94,78 @@ jobs:
                   prerelease: false
                   retryAttempts: 2
                   args: ${{ matrix.args }}
+
+            - name: Build standalone CLI
+              shell: bash
+              run: cargo build --locked --release --manifest-path src-tauri/Cargo.toml --bin adConverter-cli ${{ matrix.args }}
+
+            - name: Package standalone CLI
+              id: package_cli
+              shell: bash
+              env:
+                  CLI_TARGET: ${{ matrix.cli-target }}
+                  APP_VERSION: ${{ steps.build_app.outputs.appVersion }}
+              run: python3 scripts/package-cli.py
+
+            - name: Verify Linux CLI packages and first startup
+              if: runner.os == 'Linux'
+              shell: bash
+              env:
+                  CLI_PACKAGE_DIR: ${{ steps.package_cli.outputs.directory }}
+              run: |
+                  set -euo pipefail
+                  smoke_root="$RUNNER_TEMP/cli-smoke"
+                  dpkg-deb --info "$CLI_PACKAGE_DIR"/*.deb
+                  dpkg-deb --extract "$CLI_PACKAGE_DIR"/*.deb "$smoke_root"
+                  XDG_DATA_HOME="$smoke_root/user-data" "$smoke_root/usr/bin/adconverter-cli" --help
+                  test -s "$smoke_root/user-data/com.adconverter/config.json"
+                  test -s "$smoke_root/user-data/com.adconverter/presets/mp3.json"
+                  test -s "$smoke_root/user-data/com.adconverter/scripts/transcript_cli.py"
+                  rpm -qpl "$CLI_PACKAGE_DIR"/*.rpm > "$RUNNER_TEMP/cli-rpm-files.txt"
+                  python3 - "$RUNNER_TEMP/cli-rpm-files.txt" <<'PY'
+                  from pathlib import Path
+                  import sys
+                  files = Path(sys.argv[1]).read_text().splitlines()
+                  for required in [
+                      "/usr/bin/adconverter-cli",
+                      "/usr/share/adconverter-cli/assets/config.json",
+                      "/usr/share/adconverter-cli/assets/presets/mp3.json",
+                      "/usr/share/adconverter-cli/assets/scripts/transcript_cli.py",
+                  ]:
+                      if required not in files:
+                          sys.exit(f"Missing RPM file: {required}")
+                  PY
+
+            - name: Notarize standalone macOS CLI
+              if: runner.os == 'macOS'
+              shell: bash
+              env:
+                  CLI_ARCHIVE: ${{ steps.package_cli.outputs.archive }}
+                  APPLE_API_KEY: ${{ secrets.APPLE_API_KEY_ID }}
+                  APPLE_API_ISSUER: ${{ vars.APPLE_ISSUER_ID }}
+              run: |
+                  set -euo pipefail
+                  xcrun notarytool submit "$CLI_ARCHIVE" \
+                      --key "$APPLE_API_KEY_PATH" \
+                      --key-id "$APPLE_API_KEY" \
+                      --issuer "$APPLE_API_ISSUER" \
+                      --wait --output-format json > "$RUNNER_TEMP/cli-notarization.json"
+                  python3 - "$RUNNER_TEMP/cli-notarization.json" <<'PY'
+                  import json, sys
+                  with open(sys.argv[1]) as result:
+                      status = json.load(result)["status"]
+                  if status != "Accepted":
+                      sys.exit(f"CLI notarization failed: {status}")
+                  print("CLI notarization accepted")
+                  PY
+
+            - name: Upload standalone CLI to release
+              shell: bash
+              env:
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  APP_VERSION: ${{ steps.build_app.outputs.appVersion }}
+                  CLI_PACKAGE_DIR: ${{ steps.package_cli.outputs.directory }}
+              run: gh release upload "v$APP_VERSION" "$CLI_PACKAGE_DIR"/* --repo "$GITHUB_REPOSITORY" --clobber
 
             - name: Remove Apple API key
               if: always() && runner.os == 'macOS'

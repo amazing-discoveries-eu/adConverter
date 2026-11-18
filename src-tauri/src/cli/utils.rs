@@ -13,6 +13,7 @@ use crate::{
 };
 
 pub async fn read_config() -> Result<Config, ProcessError> {
+    super::resources::initialize()?;
     let config_path = data_dir()
         .expect("Data dir")
         .join(IDENTIFIER)

@@ -1,0 +1,19 @@
+{
+    "copyright": "",
+    "ffmpeg_path": null,
+    "download_path": null,
+    "download_args": "--output \"%(title)s.%(ext)s\"",
+    "yt_dlp_path": null,
+    "lufs": { "i": -17.0, "lra": 9.0, "tp": -1.0 },
+    "transcript_cmd": "",
+    "transcript_lang": [
+        { "name": "None", "code": "none" },
+        { "name": "Auto", "code": "auto" },
+        { "name": "Multilingual", "code": "ml" },
+        { "name": "German", "code": "de" },
+        { "name": "English", "code": "en" },
+        { "name": "Spanish", "code": "es" }
+    ],
+    "publish_preset": null,
+    "publisher": null
+}
