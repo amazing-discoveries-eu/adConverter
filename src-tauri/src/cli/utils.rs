@@ -1,8 +1,6 @@
 use std::sync::{Arc, atomic::AtomicBool};
 
 use dirs::data_dir;
-use serde_json;
-use tokio::{fs::File, io::AsyncReadExt};
 
 use crate::{
     Config, Task,
@@ -12,22 +10,21 @@ use crate::{
     utils::errors::ProcessError,
 };
 
-pub async fn read_config() -> Result<Config, ProcessError> {
-    super::resources::initialize()?;
+pub fn read_config(args: &Args) -> Result<Config, ProcessError> {
     let config_path = data_dir()
         .expect("Data dir")
         .join(IDENTIFIER)
         .join("config.json");
 
-    if !config_path.is_file() {
-        return Err(ProcessError::Custom("No config file found!".to_string()));
+    let mut config = super::config::load(
+        &super::config::global_path(),
+        &config_path,
+        args.config.as_deref(),
+        args.no_global_config,
+    )?;
+    if let Some(path) = &args.transcript_model_dir {
+        config.transcript_model_dir = Some(path.clone());
     }
-
-    let mut file = File::open(config_path).await?;
-    let mut buffer = Vec::new();
-    file.read_to_end(&mut buffer).await?;
-
-    let mut config: Config = serde_json::from_slice(&buffer)?;
 
     if let Some(ffmpeg_path) = &config.ffmpeg_path {
         if ffmpeg_path.is_file() {

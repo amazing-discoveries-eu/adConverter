@@ -1,5 +1,6 @@
 use clap::Parser;
 use inquire::{Confirm, MultiSelect, Select};
+use std::path::PathBuf;
 
 use crate::{Config, ProcessError, collect_presets};
 
@@ -8,6 +9,18 @@ use crate::{Config, ProcessError, collect_presets};
     about = "adConverter CLI",
     long_about = None)]
 pub struct Args {
+    #[clap(
+        long,
+        help = "Use this configuration instead of global and user configuration"
+    )]
+    pub config: Option<PathBuf>,
+
+    #[clap(long, help = "Ignore the optional system-wide configuration")]
+    pub no_global_config: bool,
+
+    #[clap(long, help = "Override the transcription model cache directory")]
+    pub transcript_model_dir: Option<PathBuf>,
+
     #[clap(short, long, help = "Files to encode", num_args = 1..)]
     pub files: Vec<String>,
 
@@ -25,8 +38,8 @@ pub struct Args {
 }
 
 impl Args {
-    pub async fn init(config: &Config) -> Result<Self, ProcessError> {
-        let mut obj = Self::parse();
+    pub async fn init(self, config: &Config) -> Result<Self, ProcessError> {
+        let mut obj = self;
 
         obj.files = obj
             .files
@@ -91,5 +104,45 @@ impl Args {
         obj.lang = obj.lang.map(|lang| config.code_from(&lang));
 
         Ok(obj)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn configuration_flags_are_optional_and_parse_with_processing_options() {
+        let defaults = Args::try_parse_from(["adconverter-cli"]).unwrap();
+        assert!(defaults.config.is_none());
+        assert!(!defaults.no_global_config);
+        assert!(defaults.transcript_model_dir.is_none());
+
+        let args = Args::try_parse_from([
+            "adconverter-cli",
+            "--config",
+            "/custom/config.json",
+            "--no-global-config",
+            "--transcript-model-dir",
+            "/shared models",
+            "--files",
+            "video.mp4",
+            "--lang",
+            "de",
+            "--fade",
+            "false",
+            "--lufs",
+            "false",
+            "--presets",
+        ])
+        .unwrap();
+        assert_eq!(args.config, Some(PathBuf::from("/custom/config.json")));
+        assert!(args.no_global_config);
+        assert_eq!(
+            args.transcript_model_dir,
+            Some(PathBuf::from("/shared models"))
+        );
+        assert_eq!(args.lang.as_deref(), Some("de"));
+        assert_eq!(args.presets, Some(vec![]));
     }
 }

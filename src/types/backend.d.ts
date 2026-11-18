@@ -3,7 +3,7 @@ import type { JsonValue } from "./serde_json/JsonValue";
 
 export type AudioStream = { channels: bigint, codec_name: string | null, duration: number | null, sample_rate: bigint | null, };
 
-export type Config = { copyright: string, ffmpeg_path: string | null, download_path: string | null, download_args: string, yt_dlp_path: string | null, lufs: LufsConfig, transcript_cmd: string, transcript_lang: Array<LangConfig>, publish_preset: string | null, publisher: JsonValue | null, };
+export type Config = { copyright: string, ffmpeg_path: string | null, download_path: string | null, download_args: string, yt_dlp_path: string | null, lufs: LufsConfig, transcript_cmd: string, transcript_model_dir: string | null, transcript_lang: Array<LangConfig>, publish_preset: string | null, publisher: JsonValue | null, };
 
 export type FFmpegProgress = { title: string, fps: number, bitrate: string, total_size: bigint, elapsed_sec: number, elapsed_pct: bigint, speed: number, progress: string, };
 

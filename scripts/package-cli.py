@@ -16,10 +16,14 @@ def linux_packages(root, binary, version, output):
         executable.parent.mkdir(parents=True)
         shutil.copy2(binary, executable)
         executable.chmod(0o755)
-        shutil.copytree(root / "src-tauri/assets", stage / "usr/share/adconverter-cli/assets")
+        shutil.copytree(
+            root / "src-tauri/assets", stage / "usr/share/adconverter-cli/assets",
+            ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
+        )
         documentation = stage / "usr/share/doc/adconverter-cli"
         documentation.mkdir(parents=True)
         shutil.copy2(root / "docs/CLI.md", documentation / "README.md")
+        shutil.copy2(root / "docs/cli-config.example.json", documentation / "config.example.json")
         shutil.copy2(root / "LICENSE", documentation / "copyright")
 
         # Keep real ELF requirements; GUI libraries must never enter this build.

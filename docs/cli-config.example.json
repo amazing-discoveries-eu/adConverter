@@ -1,0 +1,4 @@
+{
+    "transcript_cmd": "/opt/adconverter-transcript/bin/python /usr/share/adconverter-cli/assets/scripts/transcript_cli.py -d cpu -c int8 -l %lang% -f %file% -o %output%",
+    "transcript_model_dir": null
+}

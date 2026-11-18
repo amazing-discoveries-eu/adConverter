@@ -221,8 +221,8 @@ fn process_vtt(subtitles: Vec<Subtitle>, duration: u64, lang: &str) -> Vec<Subti
     }
 
     if let Some(mut last) = prev {
-        if last.end > duration {
-            let new_end = (duration - 300).max(last.start + 500); // min. 500ms length
+        if duration > 0 && last.end > duration {
+            let new_end = duration.saturating_sub(300).max(last.start + 500); // min. 500ms length
             last.end = new_end;
         }
 
@@ -278,4 +278,20 @@ pub async fn optimize_vtt(
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn unknown_or_very_short_media_duration_does_not_underflow() {
+        let subtitle = Subtitle {
+            start: 0,
+            end: 1000,
+            text: "Hello".into(),
+        };
+        assert_eq!(process_vtt(vec![subtitle.clone()], 0, "de")[0].end, 1000);
+        assert_eq!(process_vtt(vec![subtitle], 100, "de")[0].end, 500);
+    }
 }

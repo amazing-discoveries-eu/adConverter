@@ -23,6 +23,7 @@ class PackagingTests(unittest.TestCase):
             "src-tauri/assets/presets/mp3.json": "preset",
             "src-tauri/assets/scripts/transcript.py": "script",
             "docs/CLI.md": "instructions",
+            "docs/cli-config.example.json": "{}",
             "LICENSE": "license",
             "src-tauri/target/cli/release/adConverter-cli": "headless executable",
             # A desktop executable must never be selected for standalone packages.
@@ -44,6 +45,8 @@ class PackagingTests(unittest.TestCase):
             self.assertEqual((stage / "usr/share/adconverter-cli/assets/presets/mp3.json").read_text(), "preset")
             self.assertTrue((stage / "usr/share/adconverter-cli/assets/scripts/transcript.py").is_file())
             self.assertTrue((stage / "usr/share/adconverter-cli/assets/config.json").is_file())
+            self.assertTrue((stage / "usr/share/doc/adconverter-cli/config.example.json").is_file())
+            self.assertFalse((stage / "etc/adconverter/config.json").exists())
             Path(command[command.index("--package") + 1]).touch()
 
         with patch.object(packager.subprocess, "check_output", return_value="shlibs:Depends=libc6 (>= 2.34), libgcc-s1\n"), patch.object(packager.subprocess, "run", side_effect=build):

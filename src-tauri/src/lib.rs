@@ -81,6 +81,8 @@ pub struct Config {
     pub yt_dlp_path: Option<PathBuf>,
     pub lufs: LufsConfig,
     pub transcript_cmd: String,
+    #[serde(default)]
+    pub transcript_model_dir: Option<PathBuf>,
     pub transcript_lang: Vec<LangConfig>,
     #[serde(default)]
     pub publish_preset: Option<String>,

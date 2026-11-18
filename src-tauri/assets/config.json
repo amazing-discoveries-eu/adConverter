@@ -6,6 +6,7 @@
     "yt_dlp_path": null,
     "lufs": { "i": -17.0, "lra": 9.0, "tp": -1.0 },
     "transcript_cmd": "",
+    "transcript_model_dir": null,
     "transcript_lang": [
         { "name": "None", "code": "none" },
         { "name": "Auto", "code": "auto" },

@@ -3,6 +3,7 @@ use std::{
     sync::{Arc, atomic::AtomicBool},
 };
 
+use clap::Parser;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use log::error;
 use tokio::sync::Mutex;
@@ -17,8 +18,10 @@ use crate::{
 };
 
 pub async fn run() -> Result<(), ProcessError> {
-    let config = read_config().await?;
-    let args = Args::init(&config).await?;
+    super::resources::initialize()?;
+    let args = Args::parse();
+    let config = read_config(&args)?;
+    let args = args.init(&config).await?;
 
     if args.files.is_empty() {
         error!("Add files to encode: -f <[FILES]>");

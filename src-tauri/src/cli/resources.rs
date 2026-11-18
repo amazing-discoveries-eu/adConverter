@@ -1,4 +1,23 @@
-use std::{fs, io, path::Path};
+use std::{
+    fs,
+    io::{self, Write},
+    path::Path,
+};
+
+fn seed_user_assets(source: &Path, target: &Path) -> io::Result<()> {
+    fs::create_dir_all(target)?;
+    match fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(target.join("config.json"))
+    {
+        // Defaults are loaded by the CLI. A full copy would hide global settings.
+        Ok(mut file) => file.write_all(b"{}\n")?,
+        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
+        Err(error) => return Err(error),
+    }
+    copy_missing(source, target)
+}
 
 /// Seed user-editable assets without replacing existing configuration or presets.
 pub fn copy_missing(source: &Path, target: &Path) -> io::Result<()> {
@@ -45,7 +64,7 @@ pub fn initialize() -> io::Result<()> {
         sources.push(Path::new(env!("CARGO_MANIFEST_DIR")).join("assets"));
     }
     if let Some(source) = sources.iter().find(|source| source.is_dir()) {
-        copy_missing(source, &target)?;
+        seed_user_assets(source, &target)?;
     } else if !target.join("config.json").is_file() {
         return Err(io::Error::new(
             io::ErrorKind::NotFound,
@@ -76,10 +95,10 @@ mod tests {
         fs::write(source.join("config.json"), "default configuration").unwrap();
         fs::write(source.join("presets/mp3.json"), "default preset").unwrap();
         fs::write(source.join("scripts/transcript.py"), "script").unwrap();
-        copy_missing(&source, &target).unwrap();
+        seed_user_assets(&source, &target).unwrap();
         assert_eq!(
             fs::read_to_string(target.join("config.json")).unwrap(),
-            "default configuration"
+            "{}\n"
         );
         assert_eq!(
             fs::read_to_string(target.join("scripts/transcript.py")).unwrap(),
@@ -89,7 +108,7 @@ mod tests {
         fs::write(target.join("config.json"), "user configuration").unwrap();
         fs::write(target.join("presets/mp3.json"), "user preset").unwrap();
         fs::write(source.join("presets/new.json"), "new preset").unwrap();
-        copy_missing(&source, &target).unwrap();
+        seed_user_assets(&source, &target).unwrap();
         assert_eq!(
             fs::read_to_string(target.join("config.json")).unwrap(),
             "user configuration"

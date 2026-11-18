@@ -1,19 +1,44 @@
-# Docker Build
+# Transcription container
 
-## Build image
-
-```bash
-podman build -t faster_whisper .
-```
-
-## Run command
+Run these commands from this directory. The image includes both
+`transcript_cli.py` and its `model_cache.py` helper; no script mounts are needed.
 
 ```bash
-docker run -it --name whisper2 --gpus 0 -v /mnt/playout/tv-media:/tv-media -v ~/.cache/huggingface/hub:/root/.cache/huggingface/hub faster_whisper -c int8 -f /path/to/file.mp4
+docker build -t adconverter-whisper .
 ```
 
-For the converter settings:
+For NVIDIA execution, configure the NVIDIA Container Toolkit on the host:
 
 ```bash
-podman run --interactive --rm --gpus gpu0 -v %mount%:%mount% -v /home/user/.cache/huggingface/hub:/root/.cache/huggingface/hub -v /path/to/script/transcript_cli.py:/app/transcript_cli.py localhost/faster_whisper -c int8 -l %lang% -f %file%
+docker run --rm --gpus all \
+  -v /path/to/media:/media \
+  -v /path/to/output:/output \
+  -v /path/to/model-cache:/models \
+  -e ADCONVERTER_TRANSCRIPT_MODEL_DIR=/models \
+  adconverter-whisper -d cuda -c float16 -l de -f /media/video.mp4 -o /output
 ```
+
+For CPU execution, omit `--gpus all` and use `-d cpu -c int8`.
+
+For adConverter's `transcript_cmd`, use this command as a single line:
+
+```text
+docker run --rm --gpus all -v %mount%:%mount% -v %output%:%output% -v /var/cache/adconverter/models:/models -e ADCONVERTER_TRANSCRIPT_MODEL_DIR=/models adconverter-whisper -d cuda -c float16 -l %lang% -f %file% -o %output%
+```
+
+Both the media directory (`%mount%`) and the per-job output directory (`%output%`)
+must be mounted at the same paths inside the container. adConverter chooses a
+fresh output directory for each job and removes it afterwards. `%output%` is an
+output directory, not a file. The media directory must permit the script's
+short-lived `.lock` file; container users also need access to the model cache.
+Use appropriate volume labels on hosts enforcing SELinux.
+
+Container environment variables are separate from the host process environment.
+The example mounts a shared cache explicitly and selects its container path with
+`ADCONVERTER_TRANSCRIPT_MODEL_DIR`; configure these paths to match your setup.
+If you override the packaged script with a bind mount, mount `model_cache.py`
+next to it too, or mount the whole scripts directory.
+
+The script returns a nonzero exit code if transcription fails. macOS/MLX and
+Linux/Windows/Faster Whisper both honor `-o` and report completion only after
+successfully producing the VTT file. `--help` works without the model libraries.
