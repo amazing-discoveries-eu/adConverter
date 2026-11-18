@@ -49,10 +49,10 @@ jobs:
               if: runner.os == 'Linux'
               run: |
                   sudo apt-get install -y ruby ruby-dev build-essential rpm dpkg-dev
-                  sudo gem install --no-document fpm -v 1.17.0
+                  sudo gem install --no-document fpm -v 1.18.0
 
             - name: install frontend dependencies
-              run: npm install
+              run: npm ci
 
             - name: Prepare Apple API key
               if: runner.os == 'macOS'
@@ -93,7 +93,7 @@ jobs:
                   releaseDraft: true
                   prerelease: false
                   retryAttempts: 2
-                  args: ${{ matrix.args }}
+                  args: ${{ matrix.args }} -- --locked
 
             - name: Build standalone CLI
               shell: bash

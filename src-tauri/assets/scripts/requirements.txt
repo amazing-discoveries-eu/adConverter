@@ -1,4 +1,4 @@
-faster-whisper==1.2.0; sys_platform != 'darwin'
+faster-whisper==1.2.1; sys_platform != 'darwin'
 mlx-whisper; sys_platform == 'darwin'
 ctranslate2
 requests
