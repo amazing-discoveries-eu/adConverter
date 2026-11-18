@@ -4,12 +4,17 @@ use std::{
     str::FromStr,
 };
 
+#[cfg(feature = "desktop")]
 use log::*;
+#[cfg(feature = "desktop")]
 use tauri::{AppHandle, Manager, path::BaseDirectory};
+#[cfg(feature = "desktop")]
 use tauri_plugin_updater::UpdaterExt;
 use tokio::fs::{self};
+#[cfg(feature = "desktop")]
 use tokio_stream::StreamExt;
 
+#[cfg(feature = "desktop")]
 pub mod download;
 pub mod errors;
 pub mod logging;
@@ -77,6 +82,7 @@ impl Sources {
     }
 }
 
+#[cfg(feature = "desktop")]
 pub async fn update(app: tauri::AppHandle) -> tauri_plugin_updater::Result<()> {
     if let Some(update) = app.updater()?.check().await? {
         let mut downloaded = 0;
@@ -137,6 +143,7 @@ pub fn is_close<T: num_traits::Signed + std::cmp::PartialOrd>(a: T, b: T, to: T)
     (a - b).abs() < to
 }
 
+#[cfg(feature = "desktop")]
 pub async fn copy_assets(app: &AppHandle) -> Result<(), ProcessError> {
     let path_source = app.path().resolve("assets", BaseDirectory::Resource)?;
     let target_source = app.path().app_data_dir()?;

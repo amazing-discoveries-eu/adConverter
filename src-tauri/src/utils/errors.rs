@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "desktop")]
 use tauri::Error as TauriError;
 use thiserror::Error;
 
@@ -70,12 +71,14 @@ impl From<serde_json::Error> for ProcessError {
     }
 }
 
+#[cfg(feature = "desktop")]
 impl From<tauri::Error> for ProcessError {
     fn from(err: tauri::Error) -> Self {
         Self::Tauri(err.to_string())
     }
 }
 
+#[cfg(feature = "desktop")]
 impl From<tauri_plugin_store::Error> for ProcessError {
     fn from(err: tauri_plugin_store::Error) -> Self {
         Self::Tauri(err.to_string())
@@ -94,6 +97,7 @@ impl From<tokio::task::JoinError> for ProcessError {
     }
 }
 
+#[cfg(feature = "desktop")]
 impl From<tauri_plugin_http::reqwest::Error> for ProcessError {
     fn from(err: tauri_plugin_http::reqwest::Error) -> Self {
         Self::Tauri(err.to_string())
@@ -118,12 +122,14 @@ impl From<inquire::InquireError> for ProcessError {
     }
 }
 
+#[cfg(feature = "desktop")]
 impl From<ProcessError> for TauriError {
     fn from(err: ProcessError) -> Self {
         TauriError::Anyhow(err.into())
     }
 }
 
+#[cfg(feature = "desktop")]
 impl From<ProcessError> for tauri::Result<()> {
     fn from(err: ProcessError) -> Self {
         Err(TauriError::Anyhow(err.into()))

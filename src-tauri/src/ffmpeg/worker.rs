@@ -9,21 +9,19 @@ use std::{
     },
 };
 
+use crate::events::AppEvents;
 use chrono::{Datelike, Local};
 use indicatif::ProgressBar;
-use log::*;
 use serde_json::Value;
 use shlex::split;
-use tauri::{AppHandle, Emitter, Manager};
 use tokio::{
     fs,
     io::{AsyncBufReadExt, BufReader},
     process::{Child, Command},
-    sync::{Mutex, mpsc::Receiver},
+    sync::Mutex,
 };
 
 use super::{FFmpegProgress, analyze::Lufs, filter::filter_chain, probe::MediaProbe};
-use crate::{AppState, ProcessError, Task, transcript, vec_strings};
 use crate::{
     Config,
     utils::{
@@ -31,6 +29,7 @@ use crate::{
         logging::{CommandLogger, log_command},
     },
 };
+use crate::{ProcessError, Task, transcript, vec_strings};
 
 #[cfg(target_os = "macos")]
 use crate::MACOS_PATH;
@@ -97,7 +96,7 @@ async fn calc_duration(config: &Config, task: &Task) -> (f64, f64, f64) {
 }
 
 pub async fn work(
-    app: Option<AppHandle>,
+    app: Option<AppEvents>,
     config: Config,
     child: Arc<Mutex<Option<Child>>>,
     is_running: Arc<AtomicBool>,
@@ -489,41 +488,6 @@ pub async fn work(
     // if task.publish.is_some() && is_running.load(Ordering::SeqCst) {
     //     publisher::peertube::publish(app, &task_clone, is_running).await?;
     // }
-
-    Ok(())
-}
-
-pub async fn run(app: AppHandle, mut rx: Receiver<Task>) -> Result<(), ProcessError> {
-    let state = app.state::<AppState>().to_owned();
-
-    while let Some(task) = rx.recv().await {
-        // Load config for each task to get the latest configuration
-        let config = state.config.lock().await.clone();
-
-        task.active.store(true, Ordering::SeqCst);
-
-        if !task.presets.is_empty() || task.transcript.as_ref().is_some_and(|t| t != "none") {
-            app.emit("task-active", &task)?;
-
-            work(
-                Some(app.clone()),
-                config.clone(),
-                state.encoder.clone(),
-                state.run.clone(),
-                task.clone(),
-                None,
-            )
-            .await?;
-            task.active.store(false, Ordering::SeqCst);
-            task.finished.store(true, Ordering::SeqCst);
-
-            app.emit("task-finish", &task)?;
-        } else {
-            warn!("Task {:?} doesn't contain any job to process!", task.path);
-        }
-    }
-
-    warn!("Task worker done...");
 
     Ok(())
 }

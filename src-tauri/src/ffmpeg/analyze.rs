@@ -8,11 +8,11 @@ use std::{
     },
 };
 
+use crate::events::AppEvents;
 use indicatif::ProgressBar;
 use serde::de::Error;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
-use tauri::{AppHandle, Emitter};
 use tokio::{
     io::{AsyncBufReadExt, BufReader},
     process::{Child, Command},
@@ -61,7 +61,7 @@ pub struct Lufs {
 impl Lufs {
     #[allow(clippy::too_many_arguments)]
     pub async fn new(
-        app: Option<AppHandle>,
+        app: Option<AppEvents>,
         config: &Config,
         duration: f64,
         is_running: Arc<AtomicBool>,

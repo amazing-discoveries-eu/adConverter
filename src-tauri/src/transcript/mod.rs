@@ -8,8 +8,8 @@ use std::{
     },
 };
 
+use crate::events::AppEvents;
 use indicatif::ProgressBar;
-use tauri::{AppHandle, Emitter};
 use tokio::{
     fs,
     io::{AsyncBufReadExt, BufReader},
@@ -30,7 +30,7 @@ use crate::MACOS_PATH;
 
 #[allow(clippy::too_many_arguments)]
 pub async fn run(
-    app: Option<AppHandle>,
+    app: Option<AppEvents>,
     config: Config,
     child: Arc<Mutex<Option<Child>>>,
     is_running: Arc<AtomicBool>,
@@ -151,7 +151,7 @@ pub async fn run(
 
             match &app_clone {
                 Some(a) => a
-                    .emit("transcript-progress", &progress)
+                    .emit("transcript-progress", progress)
                     .expect("Emit progress"),
                 None => {
                     if let Some(ref current) = progress_bar {

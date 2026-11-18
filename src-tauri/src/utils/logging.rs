@@ -1,11 +1,11 @@
 use std::io::{self, Write};
 
+use crate::events::AppEvents;
 use flexi_logger::{
     DeferredNow, Level, LogSpecification, Logger, LoggerHandle, writers::LogWriter,
 };
 use log::*;
 use regex::Regex;
-use tauri::{AppHandle, Emitter};
 
 use crate::utils::VIDEO_EXTENSIONS;
 
@@ -71,11 +71,11 @@ impl CommandLogger {
 }
 
 pub struct LogPlain {
-    pub app: AppHandle,
+    pub app: AppEvents,
 }
 
 impl LogPlain {
-    pub fn new(app: AppHandle) -> Self {
+    pub fn new(app: AppEvents) -> Self {
         Self { app }
     }
 }
@@ -120,11 +120,11 @@ impl LogWriter for LogPlainConsole {
 }
 
 pub struct LogEmitter {
-    pub app: AppHandle,
+    pub app: AppEvents,
 }
 
 impl LogEmitter {
-    pub fn new(app: AppHandle) -> Self {
+    pub fn new(app: AppEvents) -> Self {
         Self { app }
     }
 }
@@ -275,7 +275,7 @@ fn html_to_ansi(input: &str) -> String {
     output
 }
 
-pub fn init_logging(app: Option<AppHandle>) -> Result<LoggerHandle, io::Error> {
+pub fn init_logging(app: Option<AppEvents>) -> Result<LoggerHandle, io::Error> {
     // Build the initial log specification
     let mut builder = LogSpecification::builder();
     builder

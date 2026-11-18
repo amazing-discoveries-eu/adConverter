@@ -15,16 +15,13 @@ jobs:
                 include:
                     - platform: 'macos-latest'
                       args: '--target aarch64-apple-darwin'
-                      cli-target: aarch64-apple-darwin
                     - platform: 'macos-latest'
                       args: '--target x86_64-apple-darwin'
-                      cli-target: x86_64-apple-darwin
                     - platform: 'ubuntu-22.04'
                       args: ''
                       cli-target: x86_64-unknown-linux-gnu
                     - platform: 'windows-latest'
                       args: ''
-                      cli-target: x86_64-pc-windows-msvc
         runs-on: ${{ matrix.platform }}
         steps:
             - uses: actions/checkout@v6
@@ -95,11 +92,24 @@ jobs:
                   retryAttempts: 2
                   args: ${{ matrix.args }} -- --locked
 
-            - name: Build standalone CLI
+            - name: Build standalone Linux CLI
+              if: runner.os == 'Linux'
               shell: bash
-              run: cargo build --locked --release --manifest-path src-tauri/Cargo.toml --bin adConverter-cli ${{ matrix.args }}
+              run: |
+                  set -euo pipefail
+                  cargo build --locked --release --no-default-features --manifest-path src-tauri/Cargo.toml --bin adConverter-cli --target-dir src-tauri/target/cli
+                  cargo tree --locked --no-default-features --manifest-path src-tauri/Cargo.toml --prefix none > "$RUNNER_TEMP/cli-dependencies.txt"
+                  python3 - "$RUNNER_TEMP/cli-dependencies.txt" <<'PY'
+                  from pathlib import Path
+                  import sys
+                  for line in Path(sys.argv[1]).read_text().splitlines():
+                      name = line.split()[0]
+                      if name.startswith(("tauri", "gtk", "gdk", "webkit", "javascriptcore", "soup")):
+                          sys.exit(f"Desktop dependency in standalone CLI: {name}")
+                  PY
 
-            - name: Package standalone CLI
+            - name: Package standalone Linux CLI
+              if: runner.os == 'Linux'
               id: package_cli
               shell: bash
               env:
@@ -136,30 +146,8 @@ jobs:
                           sys.exit(f"Missing RPM file: {required}")
                   PY
 
-            - name: Notarize standalone macOS CLI
-              if: runner.os == 'macOS'
-              shell: bash
-              env:
-                  CLI_ARCHIVE: ${{ steps.package_cli.outputs.archive }}
-                  APPLE_API_KEY: ${{ secrets.APPLE_API_KEY_ID }}
-                  APPLE_API_ISSUER: ${{ vars.APPLE_ISSUER_ID }}
-              run: |
-                  set -euo pipefail
-                  xcrun notarytool submit "$CLI_ARCHIVE" \
-                      --key "$APPLE_API_KEY_PATH" \
-                      --key-id "$APPLE_API_KEY" \
-                      --issuer "$APPLE_API_ISSUER" \
-                      --wait --output-format json > "$RUNNER_TEMP/cli-notarization.json"
-                  python3 - "$RUNNER_TEMP/cli-notarization.json" <<'PY'
-                  import json, sys
-                  with open(sys.argv[1]) as result:
-                      status = json.load(result)["status"]
-                  if status != "Accepted":
-                      sys.exit(f"CLI notarization failed: {status}")
-                  print("CLI notarization accepted")
-                  PY
-
             - name: Upload standalone CLI to release
+              if: runner.os == 'Linux'
               shell: bash
               env:
                   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

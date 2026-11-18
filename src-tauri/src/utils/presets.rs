@@ -7,7 +7,6 @@ use std::{
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use serde_with::serde_as;
-use tauri::{AppHandle, Manager};
 use tokio::{fs, io::AsyncWriteExt};
 use ts_rs::TS;
 
@@ -54,11 +53,11 @@ impl Preset {
     }
 }
 
-pub fn preset_path(app: &Option<AppHandle>) -> Result<PathBuf, Box<dyn std::error::Error>> {
+pub fn preset_path(app: &Option<PathBuf>) -> Result<PathBuf, Box<dyn std::error::Error>> {
     let mut directory = if cfg!(debug_assertions) {
         env::current_dir()?.join("assets")
     } else if let Some(a) = app {
-        a.path().app_data_dir()?
+        a.clone()
     } else {
         dirs::data_dir()
             .unwrap_or(env::current_dir()?)
@@ -71,7 +70,7 @@ pub fn preset_path(app: &Option<AppHandle>) -> Result<PathBuf, Box<dyn std::erro
 }
 
 pub async fn collect_presets(
-    app: &Option<AppHandle>,
+    app: &Option<PathBuf>,
 ) -> Result<Vec<Preset>, Box<dyn std::error::Error>> {
     let path = preset_path(app)?;
     let mut entries = fs::read_dir(path).await?;
