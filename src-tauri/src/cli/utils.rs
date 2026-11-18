@@ -31,7 +31,7 @@ pub async fn read_config() -> Result<Config, ProcessError> {
 
     if let Some(ffmpeg_path) = &config.ffmpeg_path {
         if ffmpeg_path.is_file() {
-            config.ffmpeg_path = ffmpeg_path.parent().map(|path| path.to_path_buf());
+            config.ffmpeg_path = ffmpeg_path.parent().map(std::path::Path::to_path_buf);
         } else if !ffmpeg_path.is_dir() {
             config.ffmpeg_path = None;
         }

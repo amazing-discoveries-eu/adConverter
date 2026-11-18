@@ -86,7 +86,7 @@ impl Filters {
             let mut sep = String::new();
             if !chain.is_empty() {
                 selector = format!("[{filter_type}out{last}]");
-                sep = ";".to_string()
+                sep = ";".to_string();
             }
 
             chain.push_str(&selector);
@@ -112,7 +112,7 @@ impl Filters {
         } else if filter.starts_with(';') || filter.starts_with('[') {
             chain.push_str(filter);
         } else {
-            chain.push_str(&format!(",{filter}"))
+            chain.push_str(&format!(",{filter}"));
         }
     }
 

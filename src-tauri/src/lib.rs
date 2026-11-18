@@ -318,7 +318,7 @@ async fn save_preset(app: AppHandle, mut preset: Preset) -> Result<(), ProcessEr
 fn prep_ffmpeg_path(config: &mut Config) {
     if let Some(ffmpeg_path) = &config.ffmpeg_path {
         if ffmpeg_path.is_file() {
-            config.ffmpeg_path = ffmpeg_path.parent().map(|p| p.to_path_buf());
+            config.ffmpeg_path = ffmpeg_path.parent().map(std::path::Path::to_path_buf);
         } else if !ffmpeg_path.is_dir() {
             config.ffmpeg_path = None;
         }
@@ -364,9 +364,9 @@ async fn save_config(app: AppHandle, state: State<'_, AppState>) -> Result<(), P
     }
 
     if let Some(l) = store.get("lufs") {
-        config.lufs.i = l.get("i").and_then(|l| l.as_f64()).unwrap_or_default();
-        config.lufs.lra = l.get("lra").and_then(|l| l.as_f64()).unwrap_or_default();
-        config.lufs.tp = l.get("tp").and_then(|l| l.as_f64()).unwrap_or_default();
+        config.lufs.i = l.get("i").and_then(Value::as_f64).unwrap_or_default();
+        config.lufs.lra = l.get("lra").and_then(Value::as_f64).unwrap_or_default();
+        config.lufs.tp = l.get("tp").and_then(Value::as_f64).unwrap_or_default();
     }
 
     if let Some(Value::String(s)) = store.get("transcript_cmd") {
@@ -413,9 +413,9 @@ async fn load_config(app: AppHandle, state: State<'_, AppState>) -> Result<(), P
 
     match store.get("lufs") {
         Some(l) => {
-            config.lufs.i = l.get("i").and_then(|l| l.as_f64()).unwrap_or_default();
-            config.lufs.lra = l.get("lra").and_then(|l| l.as_f64()).unwrap_or_default();
-            config.lufs.tp = l.get("tp").and_then(|l| l.as_f64()).unwrap_or_default();
+            config.lufs.i = l.get("i").and_then(Value::as_f64).unwrap_or_default();
+            config.lufs.lra = l.get("lra").and_then(Value::as_f64).unwrap_or_default();
+            config.lufs.tp = l.get("tp").and_then(Value::as_f64).unwrap_or_default();
         }
         None => {
             store.set("lufs", json!({ "i": -17.0, "lra": 9.0, "tp": -1.0 }));

@@ -277,7 +277,7 @@ pub async fn work(
                     .as_ref()
                     .map(|audio_ext| output.with_extension(audio_ext))
                     .unwrap_or_else(|| output.clone()),
-            )
+            );
         }
 
         let temp_out = env::temp_dir().join(&file_name);

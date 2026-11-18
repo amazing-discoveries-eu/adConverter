@@ -28,7 +28,6 @@ path = "src/bin/adConverter-cli.rs"
 tauri-build = { version = "2.7.5", features = [] }
 
 [dependencies]
-async-stream = "0.3.6"
 async-walkdir = "2.2.0"
 chrono = { version = "0.4.45", default-features = false, features = ["clock", "std", "serde"] }
 clap = { version = "4.6.8", features = ["derive", "env"] }
@@ -80,3 +79,6 @@ redundant_closure_for_method_calls = "warn"
 explicit_iter_loop = "warn"
 flat_map_option = "warn"
 redundant_else = "warn"
+
+[lints]
+workspace = true

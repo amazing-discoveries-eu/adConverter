@@ -27,6 +27,34 @@ pub fn copy_missing(source: &Path, target: &Path) -> io::Result<()> {
     Ok(())
 }
 
+pub fn initialize() -> io::Result<()> {
+    let target = dirs::data_dir()
+        .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "User data directory unavailable"))?
+        .join(super::IDENTIFIER);
+    let executable = std::env::current_exe()?;
+    let parent = executable
+        .parent()
+        .ok_or_else(|| io::Error::other("Missing executable directory"))?;
+    let mut sources = vec![parent.join("assets")];
+    // The desktop bundle stores the same assets in Contents/Resources.
+    #[cfg(target_os = "macos")]
+    sources.push(parent.join("../Resources/assets"));
+    #[cfg(target_os = "linux")]
+    sources.push(parent.join("../share/adconverter-cli/assets"));
+    if cfg!(debug_assertions) {
+        sources.push(Path::new(env!("CARGO_MANIFEST_DIR")).join("assets"));
+    }
+    if let Some(source) = sources.iter().find(|source| source.is_dir()) {
+        copy_missing(source, &target)?;
+    } else if !target.join("config.json").is_file() {
+        return Err(io::Error::new(
+            io::ErrorKind::NotFound,
+            "CLI assets missing; reinstall adConverter-cli with its assets directory",
+        ));
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -76,32 +104,4 @@ mod tests {
         );
         fs::remove_dir_all(temporary).unwrap();
     }
-}
-
-pub fn initialize() -> io::Result<()> {
-    let target = dirs::data_dir()
-        .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "User data directory unavailable"))?
-        .join(super::IDENTIFIER);
-    let executable = std::env::current_exe()?;
-    let parent = executable
-        .parent()
-        .ok_or_else(|| io::Error::other("Missing executable directory"))?;
-    let mut sources = vec![parent.join("assets")];
-    // The desktop bundle stores the same assets in Contents/Resources.
-    #[cfg(target_os = "macos")]
-    sources.push(parent.join("../Resources/assets"));
-    #[cfg(target_os = "linux")]
-    sources.push(parent.join("../share/adconverter-cli/assets"));
-    if cfg!(debug_assertions) {
-        sources.push(Path::new(env!("CARGO_MANIFEST_DIR")).join("assets"));
-    }
-    if let Some(source) = sources.iter().find(|source| source.is_dir()) {
-        copy_missing(source, &target)?;
-    } else if !target.join("config.json").is_file() {
-        return Err(io::Error::new(
-            io::ErrorKind::NotFound,
-            "CLI assets missing; reinstall adConverter-cli with its assets directory",
-        ));
-    }
-    Ok(())
 }

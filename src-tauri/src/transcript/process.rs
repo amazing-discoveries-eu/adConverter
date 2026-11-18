@@ -125,7 +125,7 @@ fn split_long_subtitle(subtitle: &Subtitle) -> Vec<Subtitle> {
     }
 
     // Total character count for time distribution
-    let total_chars: usize = chunks.iter().map(|c| c.len()).sum();
+    let total_chars: usize = chunks.iter().map(String::len).sum();
 
     let mut result = Vec::new();
     let mut current_start = subtitle.start as f64;
@@ -184,9 +184,8 @@ fn process_vtt(subtitles: Vec<Subtitle>, duration: u64, lang: &str) -> Vec<Subti
                     };
                     prev = Some(merged);
                     continue;
-                } else {
-                    processed.push(prev_sub);
                 }
+                processed.push(prev_sub);
             } else if prev_sub.text.len() + current.text.len() < 121
                 && !prev_text.ends_with('.')
                 && !prev_text.ends_with('?')

@@ -65,7 +65,7 @@ pub async fn run(
         && let Some(parent) = Path::new(&task.path).parent()
     {
         transcript_cmd =
-            transcript_cmd.replace("%mount%", &format!("\"{}\"", parent.to_string_lossy()))
+            transcript_cmd.replace("%mount%", &format!("\"{}\"", parent.to_string_lossy()));
     };
 
     transcript_cmd = transcript_cmd.replace("%lang%", lang);

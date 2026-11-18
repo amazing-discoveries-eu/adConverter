@@ -16,5 +16,5 @@ async fn main() {
     // set tauri runtime to tokio
     tauri::async_runtime::set(tokio::runtime::Handle::current());
 
-    adconverter_lib::run().await.expect("Run converter")
+    adconverter_lib::run().await.expect("Run converter");
 }
