@@ -1,6 +1,6 @@
 [package]
 name = "adConverter"
-version = "0.18.0"
+version = "0.18.1"
 description = "Batch/Preset converter based on ffmpeg."
 authors = ["Jonathan Baecker <jonbae77@gmail.com>"]
 edition = "2024"
@@ -48,15 +48,14 @@ tauri-build = { version = "2.7.5", features = [], optional = true }
 
 [dependencies]
 async-walkdir = { version = "2.2.0", optional = true }
-chrono = { version = "0.4.45", default-features = false, features = ["clock", "std", "serde"] }
 clap = { version = "4.6.8", features = ["derive", "env"] }
 dirs = "7.0.0"
-flexi_logger = { version = "0.31.10", features = ["kv", "colors"] }
+flexi_logger = { version = "0.32", features = ["kv", "colors"] }
 indicatif = "0.18.6"
 inquire = "0.9.5"
+jiff = "1.0.1"
 log = { version = "0.4.35", features = ["std", "serde", "kv", "kv_std", "kv_sval", "kv_serde"] }
 num-traits = "0.2.19"
-path-clean = "1.0.1"
 regex = "1.13.2"
 serde = { version = "1.0.229", features = ["derive", "rc"] }
 serde_json = "1.0.154"
@@ -73,8 +72,11 @@ thiserror = "2.0.21"
 tempfile = "3.27.0"
 tokio = { version = "1.54.1", features = ["full"] }
 tokio-stream = { version = "0.1.19", optional = true }
-ts-rs = { version = "12.0.1", features = ["chrono-impl", "no-serde-warnings", "serde-json-impl"] }
+ts-rs = { version = "12.0.1", features = ["no-serde-warnings", "serde-json-impl"] }
 unicode-script = "0.5.9"
+
+[dev-dependencies]
+path-clean = "1.0.1"
 
 [profile.release]
 opt-level = 3

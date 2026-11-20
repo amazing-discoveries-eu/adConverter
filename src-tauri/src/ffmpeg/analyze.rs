@@ -195,7 +195,7 @@ impl Lufs {
                         None => {
                             if let Some(ref current) = progress_bar {
                                 let msg = if progress.fps > 0.0 {
-                                    format!("Analyzing LUFS {} FPS", progress.fps)
+                                    format!("Analyzing LUFS {} FPS", progress.fps.round())
                                 } else if progress.speed > 0.0 {
                                     format!("Analyzing LUFS {} Speed", progress.speed)
                                 } else {

@@ -180,7 +180,7 @@ fn console_formatter(
     if plain {
         writeln!(w, "{log_line}")
     } else {
-        let time = now.now().format(TIME_FORMAT);
+        let time = now.format(TIME_FORMAT);
 
         writeln!(
             w,
@@ -215,7 +215,7 @@ fn formatter(now: &mut DeferredNow, record: &Record) -> String {
         ),
     };
 
-    let time = now.now().format("%H:%M:%S%.6f");
+    let time = now.format("%H:%M:%S%.6f");
 
     format!("<span class=\"text-base-content/50\">[{time}]</span> {log_line}")
 }
@@ -388,5 +388,33 @@ pub fn log_command(title: &str, prefix: Option<String>, mut cmd: Vec<String>) {
         } else {
             plain!("{current_line}");
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn jiff_timestamps_keep_microseconds_in_console_and_gui_logs() {
+        let mut now = DeferredNow::new();
+        let timestamp = now.format(TIME_FORMAT).to_string();
+        assert!(
+            Regex::new(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{6}$")
+                .unwrap()
+                .is_match(&timestamp)
+        );
+        let record = Record::builder()
+            .args(format_args!("Test message"))
+            .level(Level::Info)
+            .build();
+        let mut console = Vec::new();
+        console_formatter(&mut console, &mut now, &record, false).unwrap();
+        assert!(String::from_utf8(console).unwrap().contains(&timestamp));
+
+        let time = now.format("%H:%M:%S%.6f").to_string();
+        let gui = formatter(&mut now, &record);
+        assert!(gui.contains(&format!("[{time}]")));
+        assert!(gui.contains("Test message"));
     }
 }

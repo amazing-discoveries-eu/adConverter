@@ -10,7 +10,7 @@ use std::{
 };
 
 use crate::events::AppEvents;
-use chrono::{Datelike, Local};
+use jiff::ZonedDateTime;
 use indicatif::ProgressBar;
 use serde_json::Value;
 use shlex::split;
@@ -110,7 +110,7 @@ pub async fn work(
     let path = Path::new(&task.path);
     let (intro_dur, video_dur, outro_dur) = calc_duration(&config, &task).await;
     let duration = intro_dur + video_dur + outro_dur;
-    let year = Local::now().year();
+    let year = ZonedDateTime::now().year();
     let cmd_logger = CommandLogger::new();
     let mut audio_pos = -1;
     let mut has_audio = !task.probe.audio.is_empty();
@@ -414,7 +414,7 @@ pub async fn work(
                             None => {
                                 if let Some(ref current) = progress_clone {
                                     let msg = if progress.fps > 0.0 {
-                                        format!("{} FPS", progress.fps)
+                                        format!("{} FPS", progress.fps.round())
                                     } else if progress.speed > 0.0 {
                                         format!("{} Speed", progress.speed)
                                     } else {
