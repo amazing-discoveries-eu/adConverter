@@ -140,7 +140,7 @@ listen<Task>('task-finish', (event: Event<Task>) => {
 listen<String>('lufs-progress', async (event: Event<FFmpegProgress>) => {
     noProgressValues.value = false
     store.progressCurrent = event.payload.elapsed_pct
-    store.processMsg = `<strong>Analyze (${event.payload.title} ${event.payload.speed} Speed): </strong>`
+    store.processMsg = `<strong>Analyze (${event.payload.title} ${event.payload.speed.toFixed(2)} Speed): </strong>`
 })
 
 listen<String>('preset-start', async (event: Event<Preset>) => {
