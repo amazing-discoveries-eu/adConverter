@@ -1,6 +1,5 @@
 use std::{
     collections::HashMap,
-    env,
     path::{Path, PathBuf},
     process::Stdio,
     sync::{
@@ -10,8 +9,8 @@ use std::{
 };
 
 use crate::events::AppEvents;
-use jiff::ZonedDateTime;
 use indicatif::ProgressBar;
+use jiff::ZonedDateTime;
 use serde_json::Value;
 use shlex::split;
 use tokio::{
@@ -215,6 +214,9 @@ pub async fn work(
     }
 
     for i in 0..task_clone.presets.len() {
+        if !is_running.load(Ordering::SeqCst) {
+            return Ok(());
+        }
         let preset = task_clone.presets[i].clone();
         let mut args = task_args.clone();
         let running = is_running.clone();
@@ -279,7 +281,14 @@ pub async fn work(
             );
         }
 
-        let temp_out = env::temp_dir().join(&file_name);
+        let output_directory = output
+            .parent()
+            .filter(|path| !path.as_os_str().is_empty())
+            .unwrap_or_else(|| Path::new("."));
+        let staging = tempfile::Builder::new()
+            .prefix(".adconverter-encode-")
+            .tempdir_in(output_directory)?;
+        let temp_out = staging.path().join(&file_name);
         task_clone.presets[i].output_path = Some(output.clone());
 
         if sources.as_ref().map(|s| s.video.clone()).is_ok()
@@ -345,7 +354,10 @@ pub async fn work(
 
         let mut cmd = Command::new(ff_bin);
 
-        cmd.args(args).stderr(Stdio::piped()).stdout(Stdio::piped());
+        cmd.args(args)
+            .stderr(Stdio::piped())
+            .stdout(Stdio::piped())
+            .kill_on_drop(true);
 
         #[cfg(target_os = "macos")]
         cmd.env("PATH", MACOS_PATH);
@@ -353,12 +365,17 @@ pub async fn work(
         #[cfg(target_os = "windows")]
         cmd.creation_flags(0x08000000);
 
+        let mut process = child.lock().await;
+        if !is_running.load(Ordering::SeqCst) {
+            return Ok(());
+        }
         let mut proc = cmd.spawn()?;
 
         let stderr = proc.stderr.take().expect("Failed to capture stderr");
         let stdout = proc.stdout.take().expect("Failed to capture stdout");
 
-        *child.lock().await = Some(proc);
+        *process = Some(proc);
+        drop(process);
 
         let stderr_task = tokio::spawn(async move {
             let mut reader = BufReader::new(stderr).lines();
@@ -435,8 +452,20 @@ pub async fn work(
         stderr_task.await?;
         stdout_task.await?;
 
-        if let Some(proc) = child.lock().await.as_mut() {
-            proc.wait().await?;
+        let mut process = child.lock().await;
+        if !is_running.load(Ordering::SeqCst) {
+            return Ok(());
+        }
+        let status = process
+            .take()
+            .ok_or_else(|| ProcessError::Custom("Encoding process disappeared".into()))?
+            .wait()
+            .await?;
+        drop(process);
+        if !status.success() {
+            return Err(ProcessError::Custom(format!(
+                "FFmpeg encoding failed with {status}"
+            )));
         }
 
         let mut output_files = Vec::with_capacity(2);
@@ -453,8 +482,10 @@ pub async fn work(
         }
 
         for (temp_file, output_file) in output_files {
-            fs::copy(&temp_file, &output_file).await?;
-            fs::remove_file(temp_file).await?;
+            if !is_running.load(Ordering::SeqCst) {
+                return Ok(());
+            }
+            fs::rename(&temp_file, &output_file).await?;
         }
 
         finished.store(true, Ordering::SeqCst);
@@ -464,7 +495,8 @@ pub async fn work(
         }
     }
 
-    if let Some(src) = transcript_src
+    if is_running.load(Ordering::SeqCst)
+        && let Some(src) = transcript_src
         && task
             .transcript
             .as_ref()
@@ -490,4 +522,58 @@ pub async fn work(
     // }
 
     Ok(())
+}
+
+#[cfg(all(test, unix))]
+#[tokio::test]
+async fn failed_encoding_discards_partial_output_and_preserves_existing_files() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let root = tempfile::tempdir().unwrap();
+    let source = root.path().join("video.mp4");
+    let output = root.path().join("video # Test.mp4");
+    let subtitle = output.with_extension("vtt");
+    let executable = root.path().join("ffmpeg");
+    std::fs::write(&source, "input").unwrap();
+    std::fs::write(&output, "existing video").unwrap();
+    std::fs::write(&subtitle, "existing subtitles").unwrap();
+    std::fs::write(
+        &executable,
+        "#!/bin/sh\nfor output do :; done\nprintf partial > \"$output\"\nexit 7\n",
+    )
+    .unwrap();
+    std::fs::set_permissions(&executable, std::fs::Permissions::from_mode(0o755)).unwrap();
+
+    let task = Task {
+        path: source.to_string_lossy().into_owned(),
+        presets: vec![crate::Preset {
+            title: "Test".into(),
+            container_video: Some("mp4".into()),
+            video: serde_json::json!({"-c:v": "copy"}),
+            ..crate::Preset::default()
+        }],
+        ..Task::default()
+    };
+    let config = Config {
+        ffmpeg_path: Some(root.path().into()),
+        ..Config::default()
+    };
+    let error = work(
+        None,
+        config,
+        Arc::new(Mutex::new(None)),
+        Arc::new(AtomicBool::new(true)),
+        task,
+        None,
+    )
+    .await
+    .unwrap_err();
+
+    assert!(error.to_string().contains("exit status: 7"), "{error}");
+    assert_eq!(std::fs::read_to_string(output).unwrap(), "existing video");
+    assert_eq!(
+        std::fs::read_to_string(subtitle).unwrap(),
+        "existing subtitles"
+    );
+    assert_eq!(std::fs::read_dir(root.path()).unwrap().count(), 4);
 }

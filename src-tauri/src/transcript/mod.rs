@@ -70,7 +70,7 @@ pub async fn run(
     }
 
     if transcript_cmd.contains("%mount%")
-        && let Some(parent) = Path::new(&task.path).parent()
+        && let Some(parent) = source.parent()
     {
         transcript_cmd =
             transcript_cmd.replace("%mount%", &format!("\"{}\"", parent.to_string_lossy()));
@@ -121,12 +121,17 @@ pub async fn run(
         a.emit("transcript-start", 0).expect("Emit progress");
     }
 
+    let mut process = child.lock().await;
+    if !is_running.load(Ordering::SeqCst) {
+        return Ok(());
+    }
     let mut proc = cmd.spawn()?;
 
     let stderr = proc.stderr.take().ok_or("Failed to capture stderr")?;
     let stdout = proc.stdout.take().ok_or("Failed to capture stdout")?;
 
-    *child.lock().await = Some(proc);
+    *process = Some(proc);
+    drop(process);
 
     let stderr_task = tokio::spawn(async move {
         let mut reader = BufReader::new(stderr);
@@ -245,6 +250,9 @@ pub async fn run(
     }
     let pending = builder.tempfile_in(parent)?.into_temp_path();
     optimize_vtt(&temp_out, &pending, duration, lang).await?;
+    if !is_running.load(Ordering::SeqCst) {
+        return Ok(());
+    }
     pending.persist(&output_path).map_err(|error| error.error)?;
 
     if let Some(current) = completion_progress {
@@ -292,6 +300,44 @@ mod tests {
         )
         .unwrap();
         source
+    }
+
+    #[tokio::test]
+    async fn mount_follows_encoded_source_and_cancelled_jobs_do_not_start() {
+        let root = tempfile::tempdir().unwrap();
+        let source = make_source(&root.path().join("encoding destination"));
+        let script = root.path().join("transcribe.sh");
+        std::fs::write(
+            &script,
+            "[ \"$1\" = \"${3%/*}:${3%/*}\" ] || exit 7\nprintf 'WEBVTT\\n\\n00:00:00.000 --> 00:00:01.000\\nTest\\n' > \"$2/video.vtt\"\n",
+        ).unwrap();
+        let task = Task {
+            path: root
+                .path()
+                .join("original/video.mp4")
+                .to_string_lossy()
+                .into_owned(),
+            ..Task::default()
+        };
+        let config = Config {
+            transcript_cmd: format!("/bin/sh {:?} %mount%:%mount% %output% %file%", script),
+            ..Config::default()
+        };
+        for running in [false, true] {
+            run(
+                None,
+                config.clone(),
+                Arc::new(Mutex::new(None)),
+                Arc::new(AtomicBool::new(running)),
+                CommandLogger::new(),
+                &source,
+                &task,
+                None,
+            )
+            .await
+            .unwrap();
+            assert_eq!(source.with_extension("vtt").exists(), running);
+        }
     }
 
     #[tokio::test]

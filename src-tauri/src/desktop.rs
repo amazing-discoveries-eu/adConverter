@@ -25,19 +25,20 @@ use tokio::{
 
 use crate::{
     Config, LufsConfig, Preset, ProcessError, Sources, Task, Template, collect_presets,
-    copy_assets, delete_files, download,
+    copy_assets, download,
+    events::AppEvents,
     ffmpeg::{probe::MediaProbe, worker},
     init_logging, update,
 };
 
 const DEFAULT_DOWNLOAD_ARGS: &str = "--output \"%(title)s.%(ext)s\"";
 
-#[derive(Clone)]
 struct AppState {
     run: Arc<AtomicBool>,
     sender: Sender<Task>,
     encoder: Arc<Mutex<Option<Child>>>,
     downloader: Arc<Mutex<Option<Child>>>,
+    task_execution: Mutex<()>,
     config: Arc<Mutex<Config>>,
 }
 
@@ -48,6 +49,7 @@ impl AppState {
             sender: tx,
             encoder: Arc::new(Mutex::new(None)),
             downloader: Arc::new(Mutex::new(None)),
+            task_execution: Mutex::new(()),
             config: Arc::new(Mutex::new(Config {
                 lufs: LufsConfig {
                     i: -17.0,
@@ -149,6 +151,7 @@ async fn download_url(
         &arguments,
         yt_dlp_path,
         state.downloader.clone(),
+        &state.run,
     )
     .await?;
     app.emit("download-finish", &file)
@@ -171,28 +174,16 @@ async fn task_send(task: Task, state: State<'_, AppState>) -> Result<(), Process
 }
 
 #[tauri::command]
-async fn task_cancel(task: Task, state: State<'_, AppState>) -> Result<(), ProcessError> {
-    let encoder = state.encoder.clone();
-    let downloader = state.downloader.clone();
+async fn task_cancel(state: State<'_, AppState>) -> Result<(), ProcessError> {
     state.run.store(false, Ordering::SeqCst);
 
-    for process in [encoder.clone(), downloader] {
+    for process in [&state.encoder, &state.downloader] {
         if let Some(mut proc) = process.lock().await.take() {
             proc.kill().await?;
-            proc.wait().await?;
         }
     }
 
-    *encoder.lock().await = None;
-
-    for preset in task.presets {
-        if let Some(path) = preset.output_path {
-            match delete_files(&path).await {
-                Ok(_) => info!("Delete unfinished file: {path:?}"),
-                Err(e) => error!("{e}"),
-            };
-        }
-    }
+    let _execution = state.task_execution.lock().await;
 
     Ok(())
 }
@@ -402,9 +393,8 @@ pub async fn run() -> tauri::Result<()> {
                 .expect("Restore window size");
 
             tokio::spawn(async move {
-                if let Err(e) = run_tasks(app_handle_clone.clone(), rx).await {
-                    error!("{e:?}");
-                };
+                let state = app_handle_clone.state::<AppState>();
+                run_tasks(app_handle_clone.clone().into(), &state, rx).await;
             });
 
             let _ = TrayIconBuilder::new()
@@ -473,39 +463,114 @@ pub async fn run() -> tauri::Result<()> {
     Ok(())
 }
 
-async fn run_tasks(app: AppHandle, mut rx: Receiver<Task>) -> Result<(), ProcessError> {
-    let state = app.state::<AppState>().to_owned();
-
+async fn run_tasks(app: AppEvents, state: &AppState, mut rx: Receiver<Task>) {
     while let Some(task) = rx.recv().await {
+        let _execution = state.task_execution.lock().await;
+        if !state.run.load(Ordering::SeqCst) {
+            continue;
+        }
+        if task.presets.is_empty() && task.transcript.as_deref().is_none_or(|lang| lang == "none") {
+            warn!("Task {:?} doesn't contain any job to process!", task.path);
+            continue;
+        }
+
         // Load config for each task to get the latest configuration
         let config = state.config.lock().await.clone();
-
         task.active.store(true, Ordering::SeqCst);
+        if let Err(error) = app.emit("task-active", &task) {
+            error!("Could not report task start: {error}");
+        }
 
-        if !task.presets.is_empty() || task.transcript.as_ref().is_some_and(|t| t != "none") {
-            app.emit("task-active", &task)?;
+        let result = tokio::spawn(worker::work(
+            Some(app.clone()),
+            config,
+            state.encoder.clone(),
+            state.run.clone(),
+            task.clone(),
+            None,
+        ))
+        .await
+        .map_err(ProcessError::from)
+        .and_then(|result| result);
+        task.active.store(false, Ordering::SeqCst);
 
-            worker::work(
-                Some(app.clone().into()),
-                config.clone(),
-                state.encoder.clone(),
-                state.run.clone(),
-                task.clone(),
-                None,
-            )
-            .await?;
-            task.active.store(false, Ordering::SeqCst);
-            task.finished.store(true, Ordering::SeqCst);
-
-            app.emit("task-finish", &task)?;
-        } else {
-            warn!("Task {:?} doesn't contain any job to process!", task.path);
+        let event = match result {
+            Ok(()) if state.run.load(Ordering::SeqCst) => {
+                task.finished.store(true, Ordering::SeqCst);
+                app.emit("task-finish", &task)
+            }
+            Ok(()) => continue,
+            Err(error) => {
+                if let Some(mut child) = state.encoder.lock().await.take()
+                    && let Err(cleanup_error) = child.kill().await
+                {
+                    warn!("Could not stop failed task's process: {cleanup_error}");
+                }
+                if !state.run.load(Ordering::SeqCst) {
+                    continue;
+                }
+                error!("Task {:?} failed: {error}", task.path);
+                app.emit("task-error", &task.id)
+            }
+        };
+        if let Err(error) = event {
+            error!("Could not report task result: {error}");
         }
     }
 
     warn!("Task worker done...");
+}
 
-    Ok(())
+#[cfg(all(test, unix))]
+#[tokio::test]
+async fn failed_transcription_leaves_the_queue_available_for_the_next_job() {
+    let directory = tempfile::tempdir().unwrap();
+    let source = directory.path().join("video.mp4");
+    let script = directory.path().join("transcribe.sh");
+    std::fs::write(&source, "fixture for the fake transcriber").unwrap();
+    std::fs::write(
+        &script,
+        "[ \"$1\" != fail ] || exit 7\nprintf 'WEBVTT\\n\\n00:00:00.000 --> 00:00:01.000\\nTest\\n' > \"$2/video.vtt\"\n",
+    )
+    .unwrap();
+
+    let (submit, jobs) = channel(1);
+    let (unused_sender, _) = channel(1);
+    let state = AppState::new(unused_sender);
+    state.run.store(true, Ordering::SeqCst);
+    state.config.lock().await.transcript_cmd = format!("/bin/sh {:?} %lang% %output%", script);
+
+    let (report, mut events) = tokio::sync::mpsc::unbounded_channel();
+    let app = AppEvents::new(move |name, payload| {
+        if matches!(name, "task-error" | "task-finish") {
+            let _ = report.send((name.to_owned(), payload));
+        }
+        Ok(())
+    });
+    let worker = tokio::spawn(async move { run_tasks(app, &state, jobs).await });
+    let make_task = |id: &str, lang: &str| Task {
+        id: id.into(),
+        path: source.to_string_lossy().into_owned(),
+        transcript: Some(lang.into()),
+        ..Task::default()
+    };
+
+    tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        submit.send(make_task("first", "fail")).await.unwrap();
+        assert_eq!(
+            events.recv().await.unwrap(),
+            ("task-error".into(), json!("first"))
+        );
+
+        submit.send(make_task("second", "en")).await.unwrap();
+        let (event, payload) = events.recv().await.unwrap();
+        assert_eq!(event, "task-finish");
+        assert_eq!(payload["id"], "second");
+        drop(submit);
+        worker.await.unwrap();
+    })
+    .await
+    .unwrap();
 }
 
 #[cfg(test)]

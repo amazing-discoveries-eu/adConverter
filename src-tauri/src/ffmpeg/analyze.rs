@@ -119,7 +119,10 @@ impl Lufs {
 
         let mut cmd = Command::new(ff_bin);
 
-        cmd.args(args).stderr(Stdio::piped()).stdout(Stdio::piped());
+        cmd.args(args)
+            .stderr(Stdio::piped())
+            .stdout(Stdio::piped())
+            .kill_on_drop(true);
 
         #[cfg(target_os = "macos")]
         cmd.env("PATH", MACOS_PATH);
@@ -127,12 +130,17 @@ impl Lufs {
         #[cfg(target_os = "windows")]
         cmd.creation_flags(0x08000000);
 
+        let mut process = child.lock().await;
+        if !is_running.load(Ordering::SeqCst) {
+            return Ok(Lufs::default());
+        }
         let mut proc = cmd.spawn()?;
 
         let stderr = proc.stderr.take().expect("Failed to capture stderr");
         let stdout = proc.stdout.take().expect("Failed to capture stdout");
 
-        *child.lock().await = Some(proc);
+        *process = Some(proc);
+        drop(process);
 
         let stderr_task = tokio::spawn(async move {
             let mut reader = BufReader::new(stderr).lines();
@@ -212,6 +220,10 @@ impl Lufs {
 
         stderr_task.await?;
         stdout_task.await?;
+
+        if !is_running.load(Ordering::SeqCst) {
+            return Ok(Lufs::default());
+        }
 
         if let Some(proc) = child.lock().await.as_mut() {
             proc.wait().await?;

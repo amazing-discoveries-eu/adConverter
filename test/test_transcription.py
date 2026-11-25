@@ -11,7 +11,7 @@ import sys
 import tempfile
 from types import SimpleNamespace
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 SCRIPTS = Path(__file__).resolve().parents[1] / "src-tauri/assets/scripts"
 with patch.object(sys, "path", [str(SCRIPTS), *sys.path]):
@@ -31,12 +31,13 @@ class TranscriptionTests(unittest.TestCase):
         self.output = self.root / "requested output"
         self.args = ["-f", str(self.source), "-o", str(self.output), "-l", "de"]
 
-    def cpu_modules(self, segments):
+    def faster_whisper_modules(self, segments, cuda_devices=0):
         model = SimpleNamespace(transcribe=lambda *a, **k: (segments, SimpleNamespace(duration=1)))
         return {
-            "torch": SimpleNamespace(cuda=SimpleNamespace(is_available=lambda: False)),
+            "torch": None,
+            "ctranslate2": SimpleNamespace(get_cuda_device_count=Mock(return_value=cuda_devices)),
             "faster_whisper": SimpleNamespace(
-                WhisperModel=lambda *a, **k: model,
+                WhisperModel=Mock(return_value=model),
                 BatchedInferencePipeline=lambda model: model,
                 format_timestamp=lambda t: f"00:00:{t:06.3f}",
             ),
@@ -51,7 +52,7 @@ class TranscriptionTests(unittest.TestCase):
         previous = self.output / self.source.with_suffix(".vtt").name
         previous.write_text("previous subtitles")
         stdout = io.StringIO()
-        with patch.dict(sys.modules, self.cpu_modules(segments())), patch.object(script.platform, "system", return_value="Linux"), redirect_stdout(stdout), self.assertLogs(script.log, level="ERROR"):
+        with patch.dict(sys.modules, self.faster_whisper_modules(segments())), patch.object(script.platform, "system", return_value="Linux"), redirect_stdout(stdout), self.assertLogs(script.log, level="ERROR"):
             status = script.main(self.args)
         self.assertEqual(status, 1)
         self.assertEqual(previous.read_text(), "previous subtitles")
@@ -61,11 +62,24 @@ class TranscriptionTests(unittest.TestCase):
 
     def test_cpu_success_uses_requested_output_directory(self):
         segments = [SimpleNamespace(start=0, end=1, text="Complete")]
-        with patch.dict(sys.modules, self.cpu_modules(segments)), patch.object(script.platform, "system", return_value="Linux"), redirect_stdout(io.StringIO()):
+        modules = self.faster_whisper_modules(segments)
+        with patch.dict(sys.modules, modules), patch.object(script.platform, "system", return_value="Linux"), redirect_stdout(io.StringIO()):
             self.assertEqual(script.main(self.args), 0)
+        self.assertEqual(modules["faster_whisper"].WhisperModel.call_args.kwargs["device"], "cpu")
         result = self.output / self.source.with_suffix(".vtt").name
         self.assertIn("Complete", result.read_text())
         self.assertFalse(self.source.with_suffix(".vtt").exists())
+
+    def test_cuda_detection_and_explicit_device_override_without_torch(self):
+        for extra_args, expected in [([], "cuda"), (["-d", "cpu"], "cpu")]:
+            modules = self.faster_whisper_modules([], cuda_devices=1)
+            with self.subTest(device=expected), patch.dict(sys.modules, modules), patch.object(script.platform, "system", return_value="Linux"), redirect_stdout(io.StringIO()):
+                self.assertEqual(script.main(self.args + extra_args), 0)
+                self.assertEqual(modules["faster_whisper"].WhisperModel.call_args.kwargs["device"], expected)
+                if extra_args:
+                    modules["ctranslate2"].get_cuda_device_count.assert_not_called()
+                else:
+                    modules["ctranslate2"].get_cuda_device_count.assert_called_once_with()
 
     def fake_mlx(self):
         module = self.root / "mlx_whisper.py"

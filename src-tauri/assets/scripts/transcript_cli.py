@@ -80,11 +80,11 @@ def progress(value, args):
 
 def transcribe_video(video_path, args):
     # Load dependencies only when needed; --help works without a model runtime.
-    import torch
+    from ctranslate2 import get_cuda_device_count
     from faster_whisper import BatchedInferencePipeline, WhisperModel, format_timestamp
 
     lang = None if args.l.lower() == "auto" else args.l
-    device = args.d or ("cuda" if torch.cuda.is_available() else "cpu")
+    device = args.d or ("cuda" if get_cuda_device_count() > 0 else "cpu")
     log.info("Whisper will run on %s", device)
     model = WhisperModel(
         MODEL_NAME, device=device, compute_type=args.c,

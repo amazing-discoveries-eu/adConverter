@@ -18,7 +18,10 @@ docker run --rm --gpus all \
   adconverter-whisper -d cuda -c float16 -l de -f /media/video.mp4 -o /output
 ```
 
-For CPU execution, omit `--gpus all` and use `-d cpu -c int8`.
+For CPU execution, omit `--gpus all` and use `-d cpu -c int8`. If `-d` is omitted,
+CTranslate2 selects CUDA when it sees a GPU and otherwise selects the CPU.
+The image uses CUDA 12.9.2 and cuDNN 9. The separate `requirements-torch.txt`
+is only for the PyTorch dependency of the standalone `whisper.py` script.
 
 For adConverter's `transcript_cmd`, use this command as a single line:
 
@@ -26,10 +29,11 @@ For adConverter's `transcript_cmd`, use this command as a single line:
 docker run --rm --gpus all -v %mount%:%mount% -v %output%:%output% -v /var/cache/adconverter/models:/models -e ADCONVERTER_TRANSCRIPT_MODEL_DIR=/models adconverter-whisper -d cuda -c float16 -l %lang% -f %file% -o %output%
 ```
 
-Both the media directory (`%mount%`) and the per-job output directory (`%output%`)
+Both the directory containing the actual transcription input (`%mount%`) and the per-job output directory (`%output%`)
 must be mounted at the same paths inside the container. adConverter chooses a
 fresh output directory for each job and removes it afterwards. `%output%` is an
-output directory, not a file. The media directory must permit the script's
+output directory, not a file. When encoding supplies the transcription input,
+`%mount%` follows that file to the encoding destination. The media directory must permit the script's
 short-lived `.lock` file; container users also need access to the model cache.
 Use appropriate volume labels on hosts enforcing SELinux.
 

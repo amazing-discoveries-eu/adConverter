@@ -1,5 +1,4 @@
 use std::{
-    env,
     path::{Path, PathBuf},
     str::FromStr,
 };
@@ -8,6 +7,8 @@ use std::{
 use log::*;
 #[cfg(feature = "desktop")]
 use tauri::{AppHandle, Manager, path::BaseDirectory};
+#[cfg(feature = "desktop")]
+use tauri_plugin_dialog::{DialogExt, MessageDialogButtons};
 #[cfg(feature = "desktop")]
 use tauri_plugin_updater::UpdaterExt;
 use tokio::fs::{self};
@@ -87,8 +88,8 @@ pub async fn update(app: tauri::AppHandle) -> tauri_plugin_updater::Result<()> {
     if let Some(update) = app.updater()?.check().await? {
         let mut downloaded = 0;
 
-        update
-            .download_and_install(
+        let bytes = update
+            .download(
                 |chunk_length, content_length| {
                     downloaded += chunk_length;
                     debug!("downloaded {downloaded} from {content_length:?}");
@@ -99,11 +100,52 @@ pub async fn update(app: tauri::AppHandle) -> tauri_plugin_updater::Result<()> {
             )
             .await?;
 
+        // On Windows the updater exits the app as soon as it launches the installer.
+        #[cfg(target_os = "windows")]
+        if !confirm_update_restart(
+            &app,
+            "The update is ready to install. Install it and restart adConverter now?",
+        )
+        .await
+        {
+            return Ok(());
+        }
+
+        update.install(bytes)?;
         debug!("update installed");
-        app.restart();
+
+        #[cfg(not(target_os = "windows"))]
+        if confirm_update_restart(
+            &app,
+            "The update is installed. Restart adConverter now to use the new version?",
+        )
+        .await
+        {
+            app.request_restart();
+        }
     }
 
     Ok(())
+}
+
+#[cfg(feature = "desktop")]
+async fn confirm_update_restart(app: &AppHandle, message: &str) -> bool {
+    let (send, receive) = tokio::sync::oneshot::channel();
+    let mut dialog = app
+        .dialog()
+        .message(message)
+        .title("adConverter Update")
+        .buttons(MessageDialogButtons::OkCancelCustom(
+            "Restart now".into(),
+            "Later".into(),
+        ));
+    if let Some(window) = app.get_webview_window("main") {
+        dialog = dialog.parent(&window);
+    }
+    dialog.show(move |confirmed| {
+        let _ = send.send(confirmed);
+    });
+    receive.await.unwrap_or(false)
 }
 
 pub fn time_to_sec(time_str: &str) -> f64 {
@@ -117,26 +159,6 @@ pub fn time_to_sec(time_str: &str) -> f64 {
     let milliseconds = t.next().unwrap_or(0.0);
 
     hours * 3600.0 + minutes * 60.0 + seconds + milliseconds / 1000.0
-}
-
-pub async fn delete_files(path: &Path) -> Result<(), ProcessError> {
-    let temp_file = env::temp_dir().join(path.file_name().unwrap());
-    let folder = path
-        .parent()
-        .ok_or(ProcessError::IO(format!("No parent folder from: {path:?}")))?;
-    let mut entries = fs::read_dir(folder).await?;
-
-    if temp_file.is_file() {
-        fs::remove_file(temp_file).await?;
-    }
-
-    while let Some(entry) = entries.next_entry().await? {
-        if entry.path().file_stem() == path.file_stem() {
-            fs::remove_file(entry.path()).await?;
-        }
-    }
-
-    Ok(())
 }
 
 pub fn is_close<T: num_traits::Signed + std::cmp::PartialOrd>(a: T, b: T, to: T) -> bool {

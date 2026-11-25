@@ -1,4 +1,11 @@
-use std::{path::PathBuf, process::Stdio, sync::Arc};
+use std::{
+    path::PathBuf,
+    process::Stdio,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
+};
 
 use log::debug;
 use tauri::{AppHandle, Emitter};
@@ -49,6 +56,7 @@ pub async fn download(
     arguments: &str,
     yt_dlp_path: Option<PathBuf>,
     process: Arc<Mutex<Option<Child>>>,
+    is_running: &AtomicBool,
 ) -> Result<String, ProcessError> {
     tokio::fs::create_dir_all(&directory).await?;
 
@@ -71,6 +79,10 @@ pub async fn download(
     #[cfg(target_os = "windows")]
     command.creation_flags(0x08000000);
 
+    let mut slot = process.lock().await;
+    if !is_running.load(Ordering::SeqCst) {
+        return Err(ProcessError::Custom("yt-dlp download was cancelled".into()));
+    }
     let mut child = command.spawn().map_err(|error| {
         ProcessError::Custom(format!(
             "Could not start yt-dlp. Install it and make sure it is in PATH: {error}"
@@ -86,7 +98,8 @@ pub async fn download(
         .ok_or_else(|| ProcessError::Custom("Could not read yt-dlp error output".into()))?;
     let mut stdout = BufReader::new(stdout).lines();
     let mut stderr = BufReader::new(stderr).lines();
-    *process.lock().await = Some(child);
+    *slot = Some(child);
+    drop(slot);
     let mut downloaded_file = None;
     let mut error_output = Vec::new();
     let mut stdout_open = true;

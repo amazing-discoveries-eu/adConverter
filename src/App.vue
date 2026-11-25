@@ -38,6 +38,7 @@ const defaultTemplate: Template = {
     lower_thirds: [],
 }
 const currentTask = ref<Task | null>(null)
+const changingRunState = ref(false)
 
 const targetFolder = ref<string | null>(null)
 const targetSubfolder = ref(false)
@@ -135,6 +136,17 @@ listen<Task>('task-finish', (event: Event<Task>) => {
         store.jobInProcess = false
         store.jobsDone = true
     }
+})
+
+listen<string>('task-error', (event) => {
+    const task = findTaskById(store.taskList, event.payload)
+    if (!task?.active || !store.jobInProcess) return
+
+    task.active = false
+    store.jobInProcess = false
+    noProgressValues.value = false
+    store.progressCurrent = 0
+    store.processMsg = '<strong>Task failed: </strong>'
 })
 
 listen<String>('lufs-progress', async (event: Event<FFmpegProgress>) => {
@@ -256,13 +268,15 @@ async function taskSendNext() {
 
     currentTask.value = task
     if (task.url) {
+        store.downloadInProgress = true
         try {
             const path = await invoke<string>('download_url', { url: task.url, target: targetFolder.value })
-            task.path = path
-            task.url = null
-            const downloadedTask = await invoke<Task>('file_drop', { task })
+            if (!store.jobInProcess) return
+            const downloadedTask = await invoke<Task>('file_drop', { task: { ...task, path, url: null } })
+            if (!store.jobInProcess) return
             Object.assign(task, downloadedTask)
         } catch (e) {
+            if (!store.jobInProcess) return
             task.active = false
             store.jobInProcess = false
             console.error('yt-dlp download failed:', e)
@@ -296,13 +310,23 @@ async function taskSendNext() {
 }
 
 async function jobRun() {
+    if (changingRunState.value) return
+    changingRunState.value = true
+    try {
+        await changeRunState()
+    } finally {
+        changingRunState.value = false
+    }
+}
+
+async function changeRunState() {
     if (store.jobInProcess) {
+        const task = store.taskList.find((entry: Task) => entry.active)
         store.jobInProcess = false
 
-        await invoke<Task>('task_cancel', { task: currentTask.value })
+        await invoke('task_cancel')
             .then(() => {
-                currentTask.value.active = false
-                currentTask.value.finished = false
+                if (task) task.active = false
             })
             .catch((e) => {
                 store.msgAlert('error', e, 5)
@@ -316,7 +340,7 @@ async function jobRun() {
             log.error(e)
         })
 
-        await taskSendNext()
+        void taskSendNext()
     }
 }
 
@@ -540,6 +564,7 @@ async function addUrl(url: string) {
                             <button
                                 class="btn btn-lg border-base-content/30 hover:border-base-content/40 rounded-xs w-20 h-16"
                                 @click="jobRun()"
+                                :disabled="changingRunState || (!store.jobInProcess && store.downloadInProgress)"
                             >
                                 {{ store.jobInProcess ? 'Cancel' : 'Run' }}
                             </button>

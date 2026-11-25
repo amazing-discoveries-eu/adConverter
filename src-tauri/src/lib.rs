@@ -23,7 +23,7 @@ pub use desktop::run;
 use ffmpeg::{probe::MediaProbe, worker};
 pub use publisher::Publish;
 pub use utils::{
-    Sources, delete_files,
+    Sources,
     errors::ProcessError,
     logging::init_logging,
     presets::{Preset, collect_presets},

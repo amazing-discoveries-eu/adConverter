@@ -1,8 +1,7 @@
 <script setup lang="ts">
-import { ref, watch, onBeforeMount } from 'vue'
+import { ref, watch } from 'vue'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { invoke } from '@tauri-apps/api/core'
-import { check, type Update } from '@tauri-apps/plugin-updater'
 import { storeToRefs } from 'pinia'
 
 import { useStore } from '../store/index.ts'
@@ -10,7 +9,6 @@ import { useStore } from '../store/index.ts'
 const store = useStore()
 const { jobsDone } = storeToRefs(useStore())
 const shutdown = ref(false)
-const update = ref<Update | null>(null)
 
 const prop = defineProps({
     logger: {
@@ -31,10 +29,6 @@ const prop = defineProps({
             return
         },
     },
-})
-
-onBeforeMount(async () => {
-    update.value = await check()
 })
 
 watch([jobsDone], () => {
@@ -102,11 +96,6 @@ async function shutdown_system() {
                 <div class="dropdown dropdown-start">
                     <button tabindex="0" role="button" class="btn btn-xs btn-ghost rounded-none!">Option</button>
                     <ul tabindex="0" class="menu dropdown-content bg-base-100 rounded-xs w-36 mt-1 p-0 shadow-sm">
-                        <li v-if="update">
-                            <div class="hover:rounded-xs rounded-xs!" title="Download and install update">
-                                Update available ({{ update.version }})
-                            </div>
-                        </li>
                         <li>
                             <button class="hover:rounded-xs rounded-xs!" @click="openCloseConfig($event, 'presets')">
                                 Presets
