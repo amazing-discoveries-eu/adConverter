@@ -95,9 +95,10 @@ def transcribe(**kwargs):
 class writers:
     @staticmethod
     def get_writer(output_format, output_dir):
-        def write(result, source):
+        def write(result, output_name):
             if not os.environ.get("FAKE_MLX_EMPTY"):
-                output = Path(output_dir) / Path(source).with_suffix(".vtt").name
+                # Match MLX's writer: an absolute output_name bypasses output_dir.
+                output = (Path(output_dir) / output_name).with_suffix(".vtt")
                 output.write_text("WEBVTT\\n\\n00:00:00.000 --> 00:00:01.000\\n" + result["text"] + "\\n")
         return write
 ''')

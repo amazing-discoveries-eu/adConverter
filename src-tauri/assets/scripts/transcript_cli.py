@@ -119,13 +119,14 @@ def transcribe_video(video_path, args):
 MLX_CODE = """
 import json
 import sys
+from pathlib import Path
 from mlx_whisper import transcribe, writers
 source, output, model, language = sys.argv[1:]
 result = transcribe(audio=source, path_or_hf_repo=model,
                     language=json.loads(language), verbose=False,
                     condition_on_previous_text=False)
 writer = writers.get_writer(output_format='vtt', output_dir=output)
-writer(result, source)
+writer(result, Path(source).name)
 """
 
 
