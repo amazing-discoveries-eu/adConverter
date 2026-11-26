@@ -6,7 +6,6 @@ version = 4
 name = "adConverter"
 version = "0.18.3"
 dependencies = [
- "async-walkdir",
  "clap",
  "dirs",
  "flexi_logger",
@@ -17,6 +16,7 @@ dependencies = [
  "num-traits",
  "path-clean",
  "regex",
+ "semver",
  "serde",
  "serde_json",
  "serde_with",
@@ -35,7 +35,6 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.21",
  "tokio",
- "tokio-stream",
  "ts-rs",
  "unicode-script",
 ]
@@ -195,17 +194,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "async-fs"
-version = "2.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8034a681df4aed8b8edbd7fbe472401ecf009251c8b40556b304567052e294c5"
-dependencies = [
- "async-lock",
- "blocking",
- "futures-lite",
-]
-
-[[package]]
 name = "async-io"
 version = "2.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -296,17 +284,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 3.0.10",
-]
-
-[[package]]
-name = "async-walkdir"
-version = "2.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8ed40ca66d45a6775511920324e4ae05c81673f9133c187c4970a3089c3ae27c"
-dependencies = [
- "async-fs",
- "futures-lite",
- "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -5431,17 +5408,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c9cc2678c2cdd569ef8215e2afd7954ada2ae20b4fdd2c5fe6139a3b02d105db"
 dependencies = [
  "rustls",
- "tokio",
-]
-
-[[package]]
-name = "tokio-stream"
-version = "0.1.19"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a3d06f0b082ba57c26b79407372e57cf2a1e28124f78e9479fe80322cf53420b"
-dependencies = [
- "futures-core",
- "pin-project-lite",
  "tokio",
 ]
 

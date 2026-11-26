@@ -16,34 +16,7 @@ fn seed_user_assets(source: &Path, target: &Path) -> io::Result<()> {
         Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
         Err(error) => return Err(error),
     }
-    copy_missing(source, target)
-}
-
-/// Seed user-editable assets without replacing existing configuration or presets.
-pub fn copy_missing(source: &Path, target: &Path) -> io::Result<()> {
-    fs::create_dir_all(target)?;
-    for entry in fs::read_dir(source)? {
-        let entry = entry?;
-        let destination = target.join(entry.file_name());
-        if entry.file_type()?.is_dir() {
-            copy_missing(&entry.path(), &destination)?;
-        } else if entry.file_type()?.is_file() {
-            match fs::OpenOptions::new()
-                .write(true)
-                .create_new(true)
-                .open(&destination)
-            {
-                Ok(mut output) => {
-                    let mut input = fs::File::open(entry.path())?;
-                    io::copy(&mut input, &mut output)?;
-                    fs::set_permissions(&destination, entry.metadata()?.permissions())?;
-                }
-                Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
-                Err(error) => return Err(error),
-            }
-        }
-    }
-    Ok(())
+    crate::utils::assets::sync(source, target)
 }
 
 pub fn initialize() -> io::Result<()> {

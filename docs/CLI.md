@@ -45,16 +45,38 @@ as part of the app bundle. FFmpeg and ffprobe must be installed separately.
 ## Configuration and presets
 
 On startup, the CLI copies missing bundled files into the user data directory.
-Existing configuration, presets, and scripts are preserved. The desktop app does
-not need to be installed or started first when using the standalone Linux package.
+Configuration and existing presets are preserved. Bundled files under `scripts/`
+are refreshed when their contents change. The desktop app uses the same update
+policy. The standalone Linux CLI can update scripts on its own.
+
+The app records the highest release version that has started updating the scripts.
+Earlier releases then skip the scripts directory. Debug builds only seed missing
+scripts before a release has managed the directory. Rebuilt releases with the
+same version can refresh the scripts. Symbolic links to scripts or script
+directories are preserved.
 
 - macOS: `~/Library/Application Support/com.adconverter/`
 - Linux: `$XDG_DATA_HOME/com.adconverter/` (default `~/.local/share/com.adconverter/`)
 - Windows: `%APPDATA%\com.adconverter\`
 
 Edit `config.json` and the JSON files under `presets/` there. These files remain
-after uninstalling the package. New bundled files are added on the next CLI run;
-existing files are never replaced automatically.
+after uninstalling the package. New bundled files are added on the next CLI run.
+
+Put your own scripts in `scripts-custom/` in the same user data directory and
+point `transcript_cmd` at them. This directory is created automatically and its
+contents are not replaced by application updates. Files in `scripts/` whose
+names do not occur in the bundle are also left untouched for compatibility.
+
+Before replacing a changed bundled script, the app saves its previous contents
+under `scripts-custom/backups/`, with a unique `.bak` filename. This preserves
+edits made to older script copies, too. Existing backups are never overwritten,
+and unchanged scripts do not create another backup on every start. To keep using
+your modified version, copy it from the backup into `scripts-custom/` and update
+`transcript_cmd`. Include any local helper modules it imports alongside it.
+
+Python virtual environments and installed Python packages are not automatically
+modified. If a new script requires updated dependencies, update the environment
+using the bundled requirements files.
 
 The supplied transcription scripts require additional Python dependencies or a
 container setup; see `scripts/README.md` and the bundled requirements files.
@@ -130,8 +152,9 @@ Set `transcript_model_dir` to an absolute directory such as
 `null` to keep the normal per-user model cache. Users downloading models need
 write access to the shared directory, which can be managed through a shared group.
 The packaged `transcript_cli.py` and `model_cache.py` support this setting for
-Faster Whisper and MLX. Existing private script copies are not replaced on upgrade;
-use the current packaged script or update those copies explicitly.
+Faster Whisper and MLX. Bundled copies under the user data directory's `scripts/`
+are refreshed automatically. Private versions in `scripts-custom/` must be updated
+explicitly, or use the current packaged script directly.
 
 To override the configured model directory for a single invocation:
 

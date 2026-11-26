@@ -9,3 +9,8 @@ For most users, popular programs like [Handbrake](https://handbrake.fr/) make mo
 Since this program is intended more for in-house use, there will be little documentation and support.
 
 Linux, MacOS and Windows are supported. ffmpeg and ffprobe must be installed so that the program can find them.
+
+Release builds refresh bundled scripts in the user data directory's `scripts/`
+folder on startup. Previous versions are backed up in `scripts-custom/backups/`.
+Keep personal scripts in `scripts-custom/`; configuration and presets are preserved.
+See [CLI documentation](docs/CLI.md) for paths and transcription configuration.

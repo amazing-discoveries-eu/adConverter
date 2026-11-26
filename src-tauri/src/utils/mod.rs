@@ -12,9 +12,8 @@ use tauri_plugin_dialog::{DialogExt, MessageDialogButtons};
 #[cfg(feature = "desktop")]
 use tauri_plugin_updater::UpdaterExt;
 use tokio::fs::{self};
-#[cfg(feature = "desktop")]
-use tokio_stream::StreamExt;
 
+pub(crate) mod assets;
 #[cfg(feature = "desktop")]
 pub mod download;
 pub mod errors;
@@ -170,29 +169,7 @@ pub async fn copy_assets(app: &AppHandle) -> Result<(), ProcessError> {
     let path_source = app.path().resolve("assets", BaseDirectory::Resource)?;
     let target_source = app.path().app_data_dir()?;
 
-    let mut entries = async_walkdir::WalkDir::new(&path_source);
-
-    loop {
-        match entries.next().await {
-            Some(Ok(entry)) => {
-                let source_path = entry.path();
-                let relative_path = source_path.strip_prefix(&path_source)?;
-                let target_path = target_source.join(relative_path);
-
-                if source_path.is_dir() && !target_path.is_dir() {
-                    fs::create_dir_all(&target_path).await?;
-                } else if source_path.is_file() && !target_path.is_file() {
-                    fs::copy(&source_path, &target_path).await?;
-                }
-            }
-            Some(Err(e)) => {
-                error!("error: {}", e);
-                break;
-            }
-            None => break,
-        }
-    }
-
+    tokio::task::spawn_blocking(move || assets::sync(&path_source, &target_source)).await??;
     Ok(())
 }
 

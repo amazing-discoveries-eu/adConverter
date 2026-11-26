@@ -1,5 +1,10 @@
 # Transcription container
 
+When this directory is the copy in adConverter's user data directory, bundled
+files are automatically refreshed when a release build starts. Keep personal scripts
+in the neighboring `scripts-custom/` directory. Replaced versions are preserved
+under `scripts-custom/backups/`.
+
 Run these commands from this directory. The image includes both
 `transcript_cli.py` and its `model_cache.py` helper; no script mounts are needed.
 

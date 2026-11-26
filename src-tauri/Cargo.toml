@@ -38,16 +38,13 @@ desktop = [
     "dep:tauri-plugin-cli",
     "dep:tauri-plugin-updater",
     "dep:tauri-plugin-window-state",
-    "dep:async-walkdir",
     "dep:system_shutdown",
-    "dep:tokio-stream",
 ]
 
 [build-dependencies]
 tauri-build = { version = "2.7.5", features = [], optional = true }
 
 [dependencies]
-async-walkdir = { version = "2.2", optional = true }
 clap = { version = "4.6", features = ["derive", "env"] }
 dirs = "7"
 flexi_logger = { version = "0.32", features = ["kv", "colors"] }
@@ -57,6 +54,7 @@ jiff = "1.0"
 log = { version = "0.4", features = ["std", "serde", "kv", "kv_std", "kv_sval", "kv_serde"] }
 num-traits = "0.2"
 regex = "1.13"
+semver = "1"
 serde = { version = "1.0", features = ["derive", "rc"] }
 serde_json = "1.0"
 serde_with = "3.24"
@@ -71,7 +69,6 @@ tauri-plugin-store = { version = "2.5", optional = true }
 thiserror = "2.0"
 tempfile = "3.27"
 tokio = { version = "1.54", features = ["full"] }
-tokio-stream = { version = "0.1", optional = true }
 ts-rs = { version = "12.0", features = ["no-serde-warnings", "serde-json-impl"] }
 unicode-script = "0.5"
 

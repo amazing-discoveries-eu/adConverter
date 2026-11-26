@@ -274,7 +274,7 @@ async fn save_config(app: AppHandle, state: State<'_, AppState>) -> Result<(), P
 async fn load_config(app: AppHandle, state: State<'_, AppState>) -> Result<(), ProcessError> {
     let app_handle = app.app_handle();
 
-    copy_assets(app_handle).await.expect("Copy assets");
+    copy_assets(app_handle).await?;
 
     let store = app_handle.store("config.json").expect("Open config");
     let mut config = state.config.lock().await;
