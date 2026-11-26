@@ -249,11 +249,14 @@ pub async fn run(
         builder.permissions(metadata.permissions());
     }
     let pending = builder.tempfile_in(parent)?.into_temp_path();
-    optimize_vtt(&temp_out, &pending, duration, lang).await?;
+    let optimized = optimize_vtt(&temp_out, &pending, duration, lang).await?;
     if !is_running.load(Ordering::SeqCst) {
         return Ok(());
     }
     pending.persist(&output_path).map_err(|error| error.error)?;
+    if optimized {
+        log::info!("Optimized: {output_path:?}");
+    }
 
     if let Some(current) = completion_progress {
         current.finish_with_message("Transcription done...");

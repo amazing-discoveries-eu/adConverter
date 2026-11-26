@@ -1,6 +1,6 @@
 use std::{fmt, path::Path, str::FromStr};
 
-use log::{error, warn};
+use log::error;
 use tokio::{
     fs::File,
     io::{self, AsyncBufReadExt, AsyncWriteExt, BufReader},
@@ -257,13 +257,11 @@ pub async fn optimize_vtt(
     out_path: &Path,
     duration: u64,
     lang: &str,
-) -> io::Result<()> {
+) -> io::Result<bool> {
     let vtt_list = vtt_serialize(in_path).await?;
     let new_vtt_list = process_vtt(vtt_list.clone(), duration, lang);
 
-    if new_vtt_list != vtt_list {
-        warn!("Optimized: {out_path:?}");
-    }
+    let optimized = new_vtt_list != vtt_list;
 
     write_vtt(out_path, &new_vtt_list).await?;
 
@@ -277,7 +275,7 @@ pub async fn optimize_vtt(
         );
     }
 
-    Ok(())
+    Ok(optimized)
 }
 
 #[cfg(test)]
