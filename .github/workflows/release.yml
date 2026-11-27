@@ -42,6 +42,17 @@ jobs:
                   sudo apt-get update
                   sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
+            - name: Require signing key for desktop RPM (Linux)
+              if: runner.os == 'Linux'
+              shell: bash
+              env:
+                  TAURI_SIGNING_RPM_KEY: ${{ secrets.TAURI_SIGNING_RPM_KEY }}
+              run: |
+                  if [[ -z "$TAURI_SIGNING_RPM_KEY" ]]; then
+                      echo "::error::Missing TAURI_SIGNING_RPM_KEY. The desktop RPM must be signed before publication."
+                      exit 1
+                  fi
+
             - name: Install CLI packaging tools (Linux)
               if: runner.os == 'Linux'
               run: |
@@ -77,6 +88,8 @@ jobs:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
                   TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
                   TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
+                  TAURI_SIGNING_RPM_KEY: ${{ runner.os == 'Linux' && secrets.TAURI_SIGNING_RPM_KEY || '' }}
+                  TAURI_SIGNING_RPM_KEY_PASSPHRASE: ${{ runner.os == 'Linux' && secrets.TAURI_SIGNING_RPM_KEY_PASSPHRASE || '' }}
                   APPLE_CERTIFICATE: ${{ runner.os == 'macOS' && secrets.APPLE_CERTIFICATE || '' }}
                   APPLE_CERTIFICATE_PASSWORD: ${{ runner.os == 'macOS' && secrets.APPLE_CERTIFICATE_PASSWORD || '' }}
                   APPLE_SIGNING_IDENTITY: ${{ runner.os == 'macOS' && secrets.APPLE_SIGNING_IDENTITY || '' }}
